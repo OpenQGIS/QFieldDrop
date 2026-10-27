@@ -37,7 +37,7 @@ class QFieldSendDialog(QDialog):
         self.setWindowTitle("QField 局域网直传 - 投送至手机 (Drop Out)")
         self.resize(560, 600)
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_DeleteOnClose, False)
 
         self._cleaned_up = False
         self.is_ready = False
@@ -71,8 +71,16 @@ class QFieldSendDialog(QDialog):
         # Step 4: Set initial active tab
         if 0 <= self.initial_tab < self.tabs.count():
             self.tabs.setCurrentIndex(self.initial_tab)
+            if self.initial_tab == 1 and hasattr(self, 'tab_localsend'):
+                self.tab_localsend.start_scan()
 
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         self.is_ready = True
+
+    def _on_tab_changed(self, idx: int):
+        if idx == 1 and hasattr(self, 'tab_localsend') and self.tab_localsend:
+            if not getattr(self.tab_localsend, 'has_scanned', False):
+                self.tab_localsend.start_scan()
 
     def _prepare_package(self) -> bool:
         project = QgsProject.instance()

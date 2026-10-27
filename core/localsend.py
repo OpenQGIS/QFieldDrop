@@ -83,6 +83,7 @@ class LocalSendDiscovery:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._udp_sock: Optional[socket.socket] = None
+        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
     @classmethod
     def fetch_device_info(cls, ip: str, port: int = LOCALSEND_PORT, timeout: float = 1.5) -> Optional[LocalSendDevice]:
@@ -119,6 +120,12 @@ class LocalSendDiscovery:
 
     def stop_discovery(self):
         self._running = False
+        if self._executor:
+            try:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+            self._executor = None
         if self._udp_sock:
             try:
                 self._udp_sock.close()
@@ -274,24 +281,32 @@ class LocalSendDiscovery:
             # Fast TCP port probe with short timeout to prevent blocking
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.35)
+                s.settimeout(0.25)
                 res = s.connect_ex((target_ip, LOCALSEND_PORT))
                 s.close()
-                if res != 0:
+                if res != 0 or not self._running:
                     return
             except Exception:
                 return
 
-            dev = self.fetch_device_info(target_ip, LOCALSEND_PORT, timeout=1.0)
+            dev = self.fetch_device_info(target_ip, LOCALSEND_PORT, timeout=0.8)
             if dev and self._running and target_ip not in self.discovered_devices:
                 self.discovered_devices[target_ip] = dev
                 self.signals.device_found.emit(dev)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
-            futures = [executor.submit(probe_index, idx) for idx in all_indices]
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+        try:
+            futures = [self._executor.submit(probe_index, idx) for idx in all_indices]
             for f in concurrent.futures.as_completed(futures):
                 if not self._running:
                     break
+        finally:
+            if self._executor:
+                try:
+                    self._executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+                self._executor = None
 
 
 class LocalSendClient:

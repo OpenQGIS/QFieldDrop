@@ -40,7 +40,7 @@ class QFieldLanDropDialog(QDialog):
         self.setWindowTitle(f"QField 局域网直传{title_suffix}")
         self.resize(560, 620)
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_DeleteOnClose, False)
 
         self._cleaned_up = False
         self.is_ready = False

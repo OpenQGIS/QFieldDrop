@@ -2,8 +2,9 @@
 """
 QField LAN Drop - QGIS Plugin Main Entry Logic
 Mounts split dual actions onto QGIS toolbar and plugins menu:
-1. [📤 投送至 QField (Drop Out)]: Auto-package & instant distribution
-2. [📥 接收 QField 成果 (Drop In)]: Instant receiving mode without packaging overhead
+1. [📤 投送至 QField (Drop Out)]: Auto-package & instant distribution dialog
+2. [📥 接收 QField 成果 (Drop In)]: Instant receiving mode dialog without packaging overhead
+3. [📱 安装手机助手 (Mobile Setup)]: Mobile companion QML installer dialog
 """
 
 import os
@@ -12,7 +13,8 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.gui import QgisInterface
 from qgis.core import Qgis
 
-from .ui.share_dialog import QFieldLanDropDialog
+from .ui.send_dialog import QFieldSendDialog
+from .ui.receive_dialog import QFieldReceiveDialog
 
 
 class QFieldDropPlugin:
@@ -20,13 +22,17 @@ class QFieldDropPlugin:
         self.iface = iface
         self.action_send = None
         self.action_receive = None
-        self.dlg = None
+        self.action_mobile = None
+        self.dlg_send = None
+        self.dlg_receive = None
+        self.mobile_dlg = None
+        self._standalone_server = None
         self.plugin_dir = os.path.dirname(os.path.abspath(__file__))
 
     def _clean_stale_actions(self):
         """Purges any lingering ghost/stale actions from toolbars and menus."""
-        keywords = ("LAN Drop", "Drop Out", "Drop In", "QField 局域网直传", "投送工程至 QField", "接收 QField 成果")
-        obj_names = ("qfielddrop_action_send", "qfielddrop_action_receive")
+        keywords = ("LAN Drop", "Drop Out", "Drop In", "QField 局域网直传", "投送工程至 QField", "接收 QField 成果", "手机助手")
+        obj_names = ("qfielddrop_action_send", "qfielddrop_action_receive", "qfielddrop_action_mobile")
 
         # 1. Clean from all toolbars
         try:
@@ -125,28 +131,35 @@ class QFieldDropPlugin:
 
     def unload(self):
         """Cleans up toolbar icons and menu items when plugin is disabled/unloaded."""
-        if self.dlg:
+        if self.dlg_send:
             try:
-                self.dlg.close()
+                self.dlg_send.close()
             except Exception:
                 pass
-            self.dlg = None
+            self.dlg_send = None
 
-        if hasattr(self, 'mobile_dlg') and self.mobile_dlg:
+        if self.dlg_receive:
+            try:
+                self.dlg_receive.close()
+            except Exception:
+                pass
+            self.dlg_receive = None
+
+        if self.mobile_dlg:
             try:
                 self.mobile_dlg.close()
             except Exception:
                 pass
             self.mobile_dlg = None
 
-        if hasattr(self, '_standalone_server') and self._standalone_server:
+        if self._standalone_server:
             try:
                 self._standalone_server.stop()
             except Exception:
                 pass
             self._standalone_server = None
 
-        for act in (self.action_send, self.action_receive, getattr(self, 'action_mobile', None)):
+        for act in (self.action_send, self.action_receive, self.action_mobile):
             if act:
                 try:
                     self.iface.removePluginMenu("&QField LAN Drop", act)
@@ -161,7 +174,7 @@ class QFieldDropPlugin:
         self._clean_stale_actions()
 
     def run_send(self):
-        """Triggered by [投送工程至 QField] button."""
+        """Triggered by [投送工程至 QField] button (Outbound Dispatch Dialog)."""
         try:
             if getattr(self, '_standalone_server', None):
                 try:
@@ -170,50 +183,38 @@ class QFieldDropPlugin:
                     pass
                 self._standalone_server = None
 
-            if self._is_dialog_active():
-                self.dlg.tabs.setCurrentIndex(0)
-                self.dlg.raise_()
-                self.dlg.activateWindow()
+            if self._is_send_dialog_active():
+                self.dlg_send.raise_()
+                self.dlg_send.activateWindow()
                 return
 
-            self.dlg = QFieldLanDropDialog(self.iface.mainWindow(), initial_tab=0, auto_package=True)
-            if not getattr(self.dlg, 'is_ready', False):
-                self.dlg = None
+            self.dlg_send = QFieldSendDialog(self.iface.mainWindow(), initial_tab=0)
+            if not getattr(self.dlg_send, 'is_ready', False):
+                self.dlg_send = None
                 return
-            self.dlg.show()
-            self.dlg.raise_()
-            self.dlg.activateWindow()
+            self.dlg_send.show()
+            self.dlg_send.raise_()
+            self.dlg_send.activateWindow()
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "QField LAN Drop", f"打开投送对话框失败: {str(e)}", level=Qgis.Warning, duration=5
             )
 
     def run_receive(self):
-        """Triggered by [接收 QField 成果] button (Zero-overhead, instant open)."""
+        """Triggered by [接收 QField 成果] button (Inbound Return Dialog, Zero-overhead)."""
         try:
-            if getattr(self, '_standalone_server', None):
-                try:
-                    self._standalone_server.stop()
-                except Exception:
-                    pass
-                self._standalone_server = None
-
-            if self._is_dialog_active():
-                self.dlg.tabs.setCurrentIndex(2)
-                self.dlg.raise_()
-                self.dlg.activateWindow()
+            if self._is_receive_dialog_active():
+                self.dlg_receive.raise_()
+                self.dlg_receive.activateWindow()
                 return
 
-            self.dlg = QFieldLanDropDialog(self.iface.mainWindow(), initial_tab=2, auto_package=False)
-            if not getattr(self.dlg, 'is_ready', False):
-                self.dlg = None
-                return
-            self.dlg.show()
-            self.dlg.raise_()
-            self.dlg.activateWindow()
+            self.dlg_receive = QFieldReceiveDialog(self.iface.mainWindow())
+            self.dlg_receive.show()
+            self.dlg_receive.raise_()
+            self.dlg_receive.activateWindow()
         except Exception as e:
             self.iface.messageBar().pushMessage(
-                "QField LAN Drop", f"打开接收对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+                "QField LAN Drop", f"打开成果接收对话框失败: {str(e)}", level=Qgis.Warning, duration=5
             )
 
     def run_mobile_install(self):
@@ -223,8 +224,10 @@ class QFieldDropPlugin:
 
         try:
             port = 8899
-            if self._is_dialog_active() and getattr(self.dlg, 'port', None):
-                port = self.dlg.port
+            if self._is_send_dialog_active() and getattr(self.dlg_send, 'port', None):
+                port = self.dlg_send.port
+            elif self._is_receive_dialog_active() and getattr(self.dlg_receive, 'port', None):
+                port = self.dlg_receive.port
             else:
                 # Ensure local server is running for mobile.zip distribution
                 if not getattr(self, '_standalone_server', None) or not self._standalone_server.is_running:
@@ -253,10 +256,18 @@ class QFieldDropPlugin:
                 "QField LAN Drop", f"打开助手安装对话框失败: {str(e)}", level=Qgis.Warning, duration=5
             )
 
-    def _is_dialog_active(self) -> bool:
-        if self.dlg:
+    def _is_send_dialog_active(self) -> bool:
+        if self.dlg_send:
             try:
-                return self.dlg.isVisible() and hasattr(self.dlg, 'tabs')
+                return self.dlg_send.isVisible()
             except RuntimeError:
-                self.dlg = None
+                self.dlg_send = None
+        return False
+
+    def _is_receive_dialog_active(self) -> bool:
+        if self.dlg_receive:
+            try:
+                return self.dlg_receive.isVisible()
+            except RuntimeError:
+                self.dlg_receive = None
         return False

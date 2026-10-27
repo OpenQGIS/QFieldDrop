@@ -49,7 +49,7 @@ class PushWorker(QThread):
 
 
 class LocalSendTab(QWidget):
-    def __init__(self, get_local_ip_cb, zip_path: str, zip_filename: str, parent=None):
+    def __init__(self, get_local_ip_cb, zip_path: str, zip_filename: str, parent=None, auto_scan: bool = False):
         super().__init__(parent)
         self.get_local_ip_cb = get_local_ip_cb
         self.zip_path = zip_path
@@ -58,9 +58,13 @@ class LocalSendTab(QWidget):
         self.discovered_devices: Dict[str, LocalSendDevice] = {}
         self.push_worker: Optional[PushWorker] = None
         self.settings = QSettings("QFieldDrop", "LocalSend")
+        self.has_scanned = False
 
         self._init_ui()
-        self.start_scan()
+        if auto_scan:
+            self.start_scan()
+        else:
+            self.status_lbl.setText("就绪。切换至此标签页或点击【重新扫描】开始搜索设备。")
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -153,6 +157,7 @@ class LocalSendTab(QWidget):
         self.zip_filename = zip_filename
 
     def start_scan(self):
+        self.has_scanned = True
         if self.discovery:
             self.discovery.stop_discovery()
 
