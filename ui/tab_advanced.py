@@ -77,7 +77,7 @@ class AdvancedTab(QWidget):
         qml_layout.addWidget(qml_desc)
 
         btn_qml_row = QHBoxLayout()
-        btn_export = QPushButton("导出移动端配套插件 (qfield_lan_pull.zip)")
+        btn_export = QPushButton("导出移动端配套插件 (qfield_drop_mobile.zip)")
         btn_export.setIcon(get_icon("download"))
         btn_export.clicked.connect(self._export_companion)
         btn_qml_row.addWidget(btn_export)
@@ -96,15 +96,25 @@ class AdvancedTab(QWidget):
 
     def _export_companion(self):
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出 QField 手机端协同插件", "qfield_lan_pull.zip", "Zip Archive (*.zip)"
+            self, "导出 QField 手机端协同插件", "qfield_drop_mobile.zip", "Zip Archive (*.zip)"
         )
         if not file_path:
             return
 
         plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        companion_dir = os.path.join(plugin_root, "companion", "qfield_lan_pull")
+        # Check QFieldDrop-Mobile first, then bundled companion
+        candidates = [
+            os.path.join(os.path.dirname(plugin_root), "QFieldDrop-Mobile"),
+            os.path.join(plugin_root, "companion", "qfield_drop"),
+            os.path.join(plugin_root, "companion", "qfield_lan_pull")
+        ]
+        companion_dir = None
+        for cand in candidates:
+            if os.path.exists(cand) and os.path.exists(os.path.join(cand, "metadata.txt")):
+                companion_dir = cand
+                break
 
-        if not os.path.exists(companion_dir):
+        if not companion_dir:
             QMessageBox.warning(self, "错误", "未找到配套移动端插件源文件！")
             return
 
@@ -117,7 +127,7 @@ class AdvancedTab(QWidget):
                         zf.write(full, arcname=rel)
             QMessageBox.information(
                 self, "导出成功",
-                f"移动端插件已保存至：\n{file_path}\n\n将其放入手机 QField 的 plugins 文件夹即可生效。"
+                f"移动端配套插件已保存至：\n{file_path}\n\n将其发送至手机，在 QField 菜单 -> 插件 -> 从压缩包安装即可生效。"
             )
         except Exception as e:
             QMessageBox.critical(self, "导出失败", f"导出过程发生错误: {str(e)}")

@@ -6,8 +6,25 @@ Item {
     id: root
 
     // QField Application Plugin Entry
-    function initPlugin(iface) {
-        // Register action into QField interface if available
+    Component.onCompleted: {
+        if (typeof iface !== "undefined" && iface.addItemToPluginsToolbar) {
+            iface.addItemToPluginsToolbar(pullBtn)
+        }
+    }
+
+    function initPlugin(qfieldIface) {
+        if (qfieldIface && qfieldIface.addItemToPluginsToolbar) {
+            qfieldIface.addItemToPluginsToolbar(pullBtn)
+        }
+    }
+
+    ToolButton {
+        id: pullBtn
+        icon.source: Qt.resolvedUrl("icon.svg")
+        text: "局域网拉取"
+        onClicked: {
+            pullDialog.open()
+        }
     }
 
     Dialog {

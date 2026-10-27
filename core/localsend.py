@@ -9,6 +9,7 @@ Supports:
 
 import os
 import json
+import time
 import uuid
 import socket
 import ssl
@@ -80,6 +81,7 @@ class LocalSendDiscovery:
         self.discovered_devices: Dict[str, LocalSendDevice] = {}
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._udp_sock: Optional[socket.socket] = None
 
     def start_discovery(self, subnet_scan: bool = True):
         self._running = True
@@ -89,6 +91,12 @@ class LocalSendDiscovery:
 
     def stop_discovery(self):
         self._running = False
+        if self._udp_sock:
+            try:
+                self._udp_sock.close()
+            except Exception:
+                pass
+            self._udp_sock = None
 
     def _run(self, subnet_scan: bool):
         self.signals.status_updated.emit("正在监听 UDP 组播广播...")
@@ -102,16 +110,18 @@ class LocalSendDiscovery:
             self.signals.status_updated.emit("正在扫描局域网网段设备...")
             self._scan_subnet()
 
-        # Allow UDP listener a moment to gather responses
-        threading.Event().wait(1.5)
-        self.signals.discovery_finished.emit()
+        # Wait for UDP listener to complete its discovery window
+        udp_thread.join(timeout=3.5)
+        if self._running:
+            self.signals.discovery_finished.emit()
 
     def _listen_and_announce_udp(self):
         sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            self._udp_sock = sock
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.settimeout(2.0)
+            sock.settimeout(0.5)
 
             # Bind to multicast port
             try:
@@ -141,9 +151,8 @@ class LocalSendDiscovery:
             except Exception:
                 pass
 
-            # Listen for responses
-            start_time = threading.Event()
-            for _ in range(10):
+            # Listen for responses for up to ~2.5 seconds (5 * 0.5s)
+            for _ in range(5):
                 if not self._running:
                     break
                 try:
@@ -165,10 +174,13 @@ class LocalSendDiscovery:
                 except socket.timeout:
                     continue
                 except Exception:
+                    if not self._running:
+                        break
                     continue
         except Exception:
             pass
         finally:
+            self._udp_sock = None
             if sock:
                 try:
                     sock.close()
@@ -238,16 +250,19 @@ class LocalSendClient:
         device: LocalSendDevice,
         file_path: str,
         display_filename: Optional[str] = None,
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        is_cancelled: Optional[Callable[[], bool]] = None,
+        _use_https: Optional[bool] = None
     ) -> Tuple[bool, str]:
         if not os.path.exists(file_path):
             return False, "待推送的文件不存在"
 
+        use_https = device.https if _use_https is None else _use_https
         file_size = os.path.getsize(file_path)
         filename = display_filename or os.path.basename(file_path)
         file_id = str(uuid.uuid4())
         session_fingerprint = "qgis-" + str(uuid.uuid4())[:8]
-        protocol = "https" if device.https else "http"
+        protocol = "https" if use_https else "http"
         base_url = f"{protocol}://{device.ip}:{device.port}/api/localsend/v2"
 
         # Step 1: POST /prepare-upload
@@ -287,10 +302,14 @@ class LocalSendClient:
                 return False, "用户在手机端拒绝了接收请求"
             return False, f"初始化传输失败: HTTP {e.code}"
         except Exception as e:
-            # If HTTPS failed, try HTTP fallback
-            if device.https:
-                device.https = False
-                return cls.push_file(device, file_path, display_filename, progress_callback)
+            # If HTTPS failed on initial attempt, try HTTP fallback once
+            if use_https and _use_https is None:
+                return cls.push_file(
+                    device, file_path, display_filename,
+                    progress_callback=progress_callback,
+                    is_cancelled=is_cancelled,
+                    _use_https=False
+                )
             return False, f"连接手机失败: {str(e)}"
 
         session_id = resp_data.get('sessionId')
@@ -303,23 +322,33 @@ class LocalSendClient:
         upload_url = f"{base_url}/upload?sessionId={session_id}&fileId={file_id}&token={file_token}"
 
         class ProgressReader:
-            def __init__(self, fp, total, cb):
+            def __init__(self, fp, total, cb, cancel_cb):
                 self.fp = fp
                 self.total = total
                 self.cb = cb
+                self.cancel_cb = cancel_cb
                 self.sent = 0
+                self.last_pct = -1
+                self.last_emit_time = 0.0
 
             def read(self, size=-1):
+                if self.cancel_cb and self.cancel_cb():
+                    raise InterruptedError("传输已取消")
                 chunk = self.fp.read(size)
                 if chunk:
                     self.sent += len(chunk)
                     if self.cb:
-                        self.cb(self.sent, self.total)
+                        now = time.monotonic()
+                        pct = int((self.sent / self.total) * 100) if self.total > 0 else 100
+                        if self.sent >= self.total or (pct != self.last_pct and (now - self.last_emit_time) >= 0.08):
+                            self.last_pct = pct
+                            self.last_emit_time = now
+                            self.cb(self.sent, self.total)
                 return chunk
 
         try:
             with open(file_path, 'rb') as f:
-                reader = ProgressReader(f, file_size, progress_callback)
+                reader = ProgressReader(f, file_size, progress_callback, is_cancelled)
                 upload_req = urllib.request.Request(
                     upload_url,
                     data=reader,
@@ -333,5 +362,7 @@ class LocalSendClient:
                     if resp.status == 200:
                         return True, f"已成功推送到 {device.alias}！"
                     return False, f"上传异常: HTTP {resp.status}"
+        except InterruptedError:
+            return False, "传输已取消"
         except Exception as e:
             return False, f"传输过程异常: {str(e)}"

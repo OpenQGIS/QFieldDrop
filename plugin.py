@@ -145,6 +145,9 @@ class QFieldDropPlugin:
                 return
 
             self.dlg = QFieldLanDropDialog(self.iface.mainWindow(), initial_tab=0, auto_package=True)
+            if not getattr(self.dlg, 'is_ready', False):
+                self.dlg = None
+                return
             self.dlg.show()
             self.dlg.raise_()
             self.dlg.activateWindow()
@@ -163,6 +166,9 @@ class QFieldDropPlugin:
                 return
 
             self.dlg = QFieldLanDropDialog(self.iface.mainWindow(), initial_tab=2, auto_package=False)
+            if not getattr(self.dlg, 'is_ready', False):
+                self.dlg = None
+                return
             self.dlg.show()
             self.dlg.raise_()
             self.dlg.activateWindow()

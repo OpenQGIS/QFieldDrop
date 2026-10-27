@@ -10,6 +10,7 @@ Supports:
 import os
 import re
 import shutil
+import sqlite3
 import tempfile
 import zipfile
 from typing import Dict, List, Any, Optional
@@ -18,12 +19,13 @@ from qgis.core import QgsProject, QgsMapLayer
 
 
 EXCLUDED_EXTENSIONS = {
-    '.qgs~', '.qgz~', '.wal', '.shm', '.tmp', '.pyc', '.bak', '.log'
+    '.qgs~', '.qgz~', '.wal', '.shm', '-wal', '-shm', '-journal',
+    '.tmp', '.pyc', '.bak', '.log'
 }
 
 EXCLUDED_DIR_NAMES = {
     '.git', '.svn', '.hg', '__pycache__', '_qfield_dist', '.qfield_drop',
-    '.idea', '.vscode', '.sync'
+    '_qfield_return', '.idea', '.vscode', '.sync'
 }
 
 EXCLUDED_FILE_NAMES = {
@@ -100,6 +102,25 @@ class ProjectPackager:
 
         return external_layers
 
+    @staticmethod
+    def _flush_sqlite_wal(directory: str):
+        """
+        Best-effort WAL checkpoint on .gpkg / .sqlite databases inside directory
+        so pending WAL transactions are merged into the main database file before archiving.
+        """
+        for root, dirs, files in os.walk(directory):
+            dirs[:] = [d for d in dirs if d.lower() not in EXCLUDED_DIR_NAMES and not d.startswith('.')]
+            for f in files:
+                if f.lower().endswith(('.gpkg', '.sqlite', '.db')):
+                    db_path = os.path.join(root, f)
+                    if os.path.exists(db_path + "-wal"):
+                        try:
+                            conn = sqlite3.connect(db_path, timeout=1.0)
+                            conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
+                            conn.close()
+                        except Exception:
+                            pass
+
     @classmethod
     def package_project(cls, project: Optional[QgsProject] = None, use_qfieldsync_if_available: bool = False) -> Dict[str, Any]:
         """
@@ -137,7 +158,7 @@ class ProjectPackager:
         zip_filename = f"{project_name}.zip"
         zip_path = os.path.join(dist_dir, zip_filename)
 
-        # Check if QFieldSync is available and requested
+        # Check if QFieldSync is available and explicitly requested
         qfieldsync_used = False
         if use_qfieldsync_if_available:
             try:
@@ -153,16 +174,10 @@ class ProjectPackager:
             except Exception:
                 qfieldsync_used = False
 
-        # If not using QFieldSync, check if an existing 'export' folder from previous QFieldSync exists
-        if not qfieldsync_used:
-            candidate_export = os.path.join(project_dir, "export")
-            if os.path.isdir(candidate_export) and any(f.endswith(('.qgs', '.qgz')) for f in os.listdir(candidate_export)):
-                # If an export directory exists with project files, prefer it
-                src_dir = candidate_export
-            else:
-                src_dir = project_dir
-        else:
-            src_dir = project_dir
+        src_dir = project_dir
+
+        # Flush SQLite/GeoPackage WAL files into main database files before archiving
+        cls._flush_sqlite_wal(src_dir)
 
         # Build ZIP archive cleanly excluding unwanted files
         file_count = 0
@@ -188,16 +203,6 @@ class ProjectPackager:
                     file_count += 1
 
         size_bytes = os.path.getsize(zip_path)
-
-        # Also create symbolic or copy alias 'project.zip' and 'latest.zip' in dist_dir
-        for alias in ('project.zip', 'latest.zip'):
-            alias_path = os.path.join(dist_dir, alias)
-            try:
-                if not os.path.exists(alias_path):
-                    # Using hardlink or copy to ensure cross-platform compatibility
-                    shutil.copyfile(zip_path, alias_path)
-            except Exception:
-                pass
 
         return {
             'dist_dir': dist_dir,

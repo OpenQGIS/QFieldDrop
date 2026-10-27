@@ -1,0 +1,11 @@
+[general]
+name=QFieldDrop Mobile
+qfieldMinimumVersion=2.0
+description=Instant LAN project and layer return companion for QField.
+version=1.0.0
+author=OpenQGIS
+email=dev@openqgis.org
+about=Companion plugin for QField. Direct LAN return of modified layers or full project archives back to QGIS desktop over local Wi-Fi with one click.
+icon=icon.svg
+category=Plugins
+tags=qfield, lan, return, airdrop, sync, mobile

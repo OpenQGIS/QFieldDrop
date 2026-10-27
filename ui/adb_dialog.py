@@ -136,7 +136,7 @@ class AdbPushDialog(QDialog):
             return
 
         self.log_edit.append(f"正在尝试无线连接至 {addr} ...")
-        success, msg = AdbPusher.connect_device(addr)
+        success, msg = AdbPusher.connect_wireless(addr)
         self.log_edit.append(msg)
         if success:
             self._refresh_devices()

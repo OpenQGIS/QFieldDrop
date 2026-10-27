@@ -5,7 +5,10 @@ Provides thread-safe Qt signals for download monitoring and alias routing.
 """
 
 import os
+import json
+import time
 import socket
+import datetime
 import threading
 import urllib.parse
 from typing import Optional, List, Dict, Tuple
@@ -285,22 +288,22 @@ class LanDropServer:
             def do_HEAD(self):
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
                 valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
-                if req_path in valid_paths or req_path.endswith('.zip'):
+                if req_path in valid_paths:
                     if not os.path.exists(target_path):
                         self.send_error(404, "Project archive not found")
                         return
                     self._send_zip_headers(os.path.getsize(target_path))
                 else:
-                    super().do_HEAD()
+                    self.send_error(404, "Not Found")
 
             def do_GET(self):
                 client_ip = self.client_address[0]
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
 
-                # Allow aliases: empty, project.zip, latest.zip, or real filename
+                # Allow explicit aliases only: empty, project.zip, latest.zip, or real filename
                 valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
-                
-                if req_path in valid_paths or req_path.endswith('.zip'):
+
+                if req_path in valid_paths:
                     if not os.path.exists(target_path):
                         self.send_error(404, "Project archive not found")
                         return
@@ -309,9 +312,11 @@ class LanDropServer:
                     file_size = os.path.getsize(target_path)
                     self._send_zip_headers(file_size)
 
-                    # Stream file in 64KB chunks
+                    # Stream file in 64KB chunks with throttled progress signals
                     sent = 0
                     chunk_size = 65536
+                    last_pct = -1
+                    last_emit_time = 0.0
                     try:
                         with open(target_path, 'rb') as f:
                             while True:
@@ -320,7 +325,12 @@ class LanDropServer:
                                     break
                                 self.wfile.write(chunk)
                                 sent += len(chunk)
-                                parent_self.signals.transfer_progress.emit(client_ip, sent, file_size)
+                                now = time.monotonic()
+                                pct = int((sent / file_size) * 100) if file_size > 0 else 100
+                                if sent >= file_size or (pct != last_pct and (now - last_emit_time) >= 0.08):
+                                    last_pct = pct
+                                    last_emit_time = now
+                                    parent_self.signals.transfer_progress.emit(client_ip, sent, file_size)
                         parent_self.signals.transfer_completed.emit(client_ip, filename)
                     except (ConnectionResetError, BrokenPipeError):
                         # Client disconnected prematurely
@@ -340,7 +350,7 @@ class LanDropServer:
                     self.end_headers()
                     self.wfile.write(b'{"status":"ok","plugin":"QFieldDrop"}')
                 else:
-                    super().do_GET()
+                    self.send_error(404, "Not Found")
 
             def do_POST(self):
                 client_ip = self.client_address[0]
@@ -350,17 +360,21 @@ class LanDropServer:
                     query_str = self.path.split('?')[1] if '?' in self.path else ''
                     params = urllib.parse.parse_qs(query_str)
                     raw_name = params.get('filename', ['field_result.zip'])[0]
-                    safe_filename = os.path.basename(urllib.parse.unquote(raw_name))
-                    if not safe_filename:
+                    safe_filename = os.path.basename(urllib.parse.unquote(raw_name)).strip()
+                    if not safe_filename or safe_filename in ('.', '..'):
                         safe_filename = "field_result.zip"
 
-                    content_length = int(self.headers.get('Content-Length', 0))
-                    if content_length <= 0:
-                        self.send_error(400, "Empty payload")
+                    try:
+                        content_length = int(self.headers.get('Content-Length', 0))
+                    except ValueError:
+                        content_length = 0
+
+                    max_upload_bytes = 4 * 1024 * 1024 * 1024  # 4 GB safety cap
+                    if content_length <= 0 or content_length > max_upload_bytes:
+                        self.send_error(400, "Invalid or empty payload size")
                         return
 
-                    import datetime
-                    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
                     dest_dir = os.path.join(parent_self.upload_dir, f"回传_{ts}")
                     os.makedirs(dest_dir, exist_ok=True)
                     dest_path = os.path.join(dest_dir, safe_filename)
@@ -378,9 +392,16 @@ class LanDropServer:
                                 written += len(chunk)
                                 remaining -= len(chunk)
 
+                        if written < content_length:
+                            try:
+                                os.remove(dest_path)
+                            except Exception:
+                                pass
+                            self.send_error(400, "Incomplete upload stream")
+                            return
+
                         parent_self.signals.file_received.emit(client_ip, dest_path, written)
 
-                        import json
                         resp_body = json.dumps({"status": "ok", "filename": safe_filename, "size": written}).encode('utf-8')
                         self.send_response(200)
                         self.send_header("Content-Type", "application/json")
@@ -388,6 +409,11 @@ class LanDropServer:
                         self.end_headers()
                         self.wfile.write(resp_body)
                     except Exception as e:
+                        try:
+                            if os.path.exists(dest_path):
+                                os.remove(dest_path)
+                        except Exception:
+                            pass
                         parent_self.signals.server_error.emit(f"接收文件异常: {str(e)}")
                         self.send_error(500, str(e))
                 else:

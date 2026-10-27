@@ -24,7 +24,7 @@ class MdnsResponder:
         self._sock: Optional[socket.socket] = None
 
     def start(self):
-        if self._running or self.ip_address.startswith("127."):
+        if self._running or not self.ip_address or self.ip_address.startswith("127."):
             return
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -32,6 +32,8 @@ class MdnsResponder:
 
     def update_ip(self, ip_address: str):
         self.ip_address = ip_address
+        if not self._running and self.ip_address and not self.ip_address.startswith("127."):
+            self.start()
 
     def stop(self):
         self._running = False
@@ -50,22 +52,31 @@ class MdnsResponder:
             res += bytes([len(b)]) + b
         return res + b'\x00'
 
-    def _decode_domain(self, data: bytes, offset: int) -> tuple[str, int]:
+    def _decode_domain(self, data: bytes, offset: int, depth: int = 0) -> tuple[str, int]:
+        if depth > 10:
+            return "", len(data)
         parts = []
         curr = offset
-        while curr < len(data):
+        data_len = len(data)
+        while curr < data_len:
             length = data[curr]
             if length == 0:
                 curr += 1
                 break
             if (length & 0xC0) == 0xC0:
-                # Pointer
+                if curr + 1 >= data_len:
+                    return "", data_len
                 ptr_offset = struct.unpack("!H", data[curr:curr+2])[0] & 0x3FFF
-                sub_name, _ = self._decode_domain(data, ptr_offset)
-                parts.append(sub_name)
+                if ptr_offset >= data_len or ptr_offset == offset:
+                    return "", data_len
+                sub_name, _ = self._decode_domain(data, ptr_offset, depth + 1)
+                if sub_name:
+                    parts.append(sub_name)
                 curr += 2
                 return ".".join(parts), curr
             curr += 1
+            if curr + length > data_len:
+                return "", data_len
             parts.append(data[curr:curr+length].decode('utf-8', errors='ignore'))
             curr += length
         return ".".join(parts), curr

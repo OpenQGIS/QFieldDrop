@@ -43,6 +43,7 @@ class QFieldLanDropDialog(QDialog):
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
         self._cleaned_up = False
+        self.is_ready = False
         self.server: Optional[LanDropServer] = None
         self.mdns: Optional[MdnsResponder] = None
         self.dist_dir: Optional[str] = None
@@ -53,7 +54,7 @@ class QFieldLanDropDialog(QDialog):
         project = QgsProject.instance()
         if not project.fileName():
             QMessageBox.warning(
-                self,
+                parent or self,
                 "工程未保存",
                 "当前 QGIS 工程尚未保存到本地磁盘！\n\n请先保存工程文件（.qgz 或 .qgs）后再进行局域网直传。"
             )
@@ -90,6 +91,7 @@ class QFieldLanDropDialog(QDialog):
             self.tabs.setCurrentIndex(self.initial_tab)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.is_ready = True
 
     def _on_tab_changed(self, idx: int):
         if idx in (0, 1) and self.pkg_info.get('size_bytes', 0) == 0:
@@ -125,7 +127,10 @@ class QFieldLanDropDialog(QDialog):
         self.server.signals.file_received.connect(self._on_file_received)
         self.server.signals.server_error.connect(self._on_server_error)
 
-        self.mdns = MdnsResponder("qgis-drop.local", "127.0.0.1")
+        if self.mdns:
+            self.mdns.stop()
+        initial_ip = self.tab_qr.get_selected_ip() if hasattr(self, 'tab_qr') and self.tab_qr else "127.0.0.1"
+        self.mdns = MdnsResponder("qgis-drop.local", initial_ip)
         self.mdns.start()
 
     def _init_ui(self):
@@ -154,12 +159,12 @@ class QFieldLanDropDialog(QDialog):
         info_layout.addStretch()
 
         ext_count = len(self.pkg_info.get('external_layers', []))
-        if ext_count > 0:
-            btn_warn = QPushButton(f"{ext_count} 个外部图层")
-            btn_warn.setIcon(get_icon("alert-triangle"))
-            btn_warn.setToolTip("查看位于工程目录外的图层")
-            btn_warn.clicked.connect(self._show_external_layers)
-            info_layout.addWidget(btn_warn)
+        self.btn_warn = QPushButton(f"{ext_count} 个外部图层")
+        self.btn_warn.setIcon(get_icon("alert-triangle"))
+        self.btn_warn.setToolTip("查看位于工程目录外的图层")
+        self.btn_warn.clicked.connect(self._show_external_layers)
+        self.btn_warn.setVisible(ext_count > 0)
+        info_layout.addWidget(self.btn_warn)
 
         btn_refresh = QPushButton("重新打包")
         btn_refresh.setIcon(get_icon("refresh"))
@@ -271,6 +276,11 @@ class QFieldLanDropDialog(QDialog):
                 f"工程名: <b>{pname}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 压缩包大小: <b>{smb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; 包含文件: <b>{fcnt} 个</b>"
             )
 
+        if hasattr(self, 'btn_warn') and self.btn_warn:
+            ext_count = len(self.pkg_info.get('external_layers', []))
+            self.btn_warn.setText(f"{ext_count} 个外部图层")
+            self.btn_warn.setVisible(ext_count > 0)
+
         self.status_box.setText("工程已重新打包，分发载荷已刷新！")
 
     def _on_client_connected(self, client_ip: str):
@@ -311,23 +321,51 @@ class QFieldLanDropDialog(QDialog):
     def _on_server_error(self, err_msg: str):
         self.status_box.setText(f"服务异常: {err_msg}")
 
+    def _cleanup(self):
+        """Cleanup server, mDNS, background workers, and temporary package files safely."""
+        if getattr(self, '_cleaned_up', False):
+            return
+        self._cleaned_up = True
+
+        try:
+            if hasattr(self, 'tab_localsend') and self.tab_localsend:
+                self.tab_localsend.stop()
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, 'tab_return') and self.tab_return:
+                if hasattr(self.tab_return, 'pull_worker') and self.tab_return.pull_worker and self.tab_return.pull_worker.isRunning():
+                    self.tab_return.pull_worker.terminate()
+        except Exception:
+            pass
+
+        try:
+            if self.mdns:
+                self.mdns.stop()
+                self.mdns = None
+        except Exception:
+            pass
+
+        try:
+            if self.server:
+                self.server.stop()
+                self.server = None
+        except Exception:
+            pass
+
+        try:
+            if self.dist_dir and os.path.exists(self.dist_dir):
+                shutil.rmtree(self.dist_dir, ignore_errors=True)
+                self.dist_dir = None
+        except Exception:
+            pass
+
     def closeEvent(self, event):
-        if hasattr(self, 'tab_localsend') and self.tab_localsend:
-            self.tab_localsend.stop()
-
-        if self.mdns:
-            self.mdns.stop()
-            self.mdns = None
-
-        if self.server:
-            self.server.stop()
-            self.server = None
-
-        if self.dist_dir and os.path.exists(self.dist_dir):
-            shutil.rmtree(self.dist_dir, ignore_errors=True)
-            self.dist_dir = None
-
+        self._cleanup()
+        event.accept()
         super().closeEvent(event)
 
     def reject(self):
-        self.close()
+        self._cleanup()
+        super().reject()

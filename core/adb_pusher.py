@@ -6,9 +6,18 @@ Pushes unzipped project folder directly into QField's sandbox storage:
 """
 
 import os
+import shlex
 import shutil
+import tempfile
 import subprocess
 from typing import List, Tuple, Optional
+
+from .packager import (
+    EXCLUDED_DIR_NAMES,
+    EXCLUDED_FILE_NAMES,
+    EXCLUDED_EXTENSIONS,
+    ProjectPackager
+)
 
 
 class AdbPusher:
@@ -64,11 +73,38 @@ class AdbPusher:
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
             out = res.stdout.strip()
-            if "connected to" in out.lower():
+            if "connected to" in out.lower() or "already connected" in out.lower():
                 return True, out
             return False, out or res.stderr.strip()
         except Exception as e:
             return False, str(e)
+
+    @classmethod
+    def connect_device(cls, ip_port: str) -> Tuple[bool, str]:
+        """Alias for connect_wireless."""
+        return cls.connect_wireless(ip_port)
+
+    @staticmethod
+    def _stage_clean_project_dir(src_dir: str) -> str:
+        """
+        Copies only clean project files (excluding _qfield_return, .git, temp/WAL files)
+        into an isolated staging folder for ADB push.
+        """
+        ProjectPackager._flush_sqlite_wal(src_dir)
+        stage_dir = tempfile.mkdtemp(prefix="qfield_adb_stage_")
+        for root, dirs, files in os.walk(src_dir):
+            dirs[:] = [d for d in dirs if d.lower() not in EXCLUDED_DIR_NAMES and not d.startswith('.')]
+            rel_root = os.path.relpath(root, src_dir)
+            dest_root = stage_dir if rel_root == '.' else os.path.join(stage_dir, rel_root)
+            os.makedirs(dest_root, exist_ok=True)
+            for f in files:
+                f_lower = f.lower()
+                if f_lower in EXCLUDED_FILE_NAMES:
+                    continue
+                if any(f_lower.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
+                    continue
+                shutil.copy2(os.path.join(root, f), os.path.join(dest_root, f))
+        return stage_dir
 
     @classmethod
     def push_project(
@@ -78,7 +114,7 @@ class AdbPusher:
         device_serial: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
-        Pushes directory to QField sandbox.
+        Pushes filtered project directory to QField sandbox.
         """
         if not cls.is_adb_available():
             return False, "系统中未安装 adb。"
@@ -88,10 +124,14 @@ class AdbPusher:
             base_cmd.extend(["-s", device_serial])
 
         remote_target = f"{cls.TARGET_QFIELD_PATH}/{project_name}"
+        quoted_remote = shlex.quote(remote_target)
+        stage_dir = None
 
         try:
-            # 1. Create target directory
-            mkdir_cmd = base_cmd + ["shell", "mkdir", "-p", remote_target]
+            stage_dir = cls._stage_clean_project_dir(src_dir)
+
+            # 1. Create target directory safely (escaped for remote shell)
+            mkdir_cmd = base_cmd + ["shell", f"mkdir -p {quoted_remote}"]
             subprocess.run(
                 mkdir_cmd,
                 stdout=subprocess.PIPE,
@@ -100,8 +140,8 @@ class AdbPusher:
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
 
-            # 2. Push folder contents
-            push_cmd = base_cmd + ["push", src_dir.rstrip('\\/') + "/.", remote_target]
+            # 2. Push clean staged folder contents
+            push_cmd = base_cmd + ["push", stage_dir.rstrip('\\/') + "/.", remote_target]
             res = subprocess.run(
                 push_cmd,
                 stdout=subprocess.PIPE,
@@ -116,6 +156,9 @@ class AdbPusher:
             return False, res.stderr or res.stdout
         except Exception as e:
             return False, str(e)
+        finally:
+            if stage_dir and os.path.exists(stage_dir):
+                shutil.rmtree(stage_dir, ignore_errors=True)
 
     @classmethod
     def pull_project(
@@ -145,10 +188,11 @@ class AdbPusher:
             f"/sdcard/QField/Exported Projects/{project_name}.zip"
         ]
 
-        # Check which remote path exists
+        # Check which remote path exists (properly escaped for remote sh)
         found_remote = None
         for rpath in candidate_remotes:
-            chk = base_cmd + ["shell", f"[ -e '{rpath}' ] && echo 'FOUND'"]
+            quoted_rpath = shlex.quote(rpath)
+            chk = base_cmd + ["shell", f"[ -e {quoted_rpath} ] && echo FOUND"]
             try:
                 res = subprocess.run(
                     chk, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5,

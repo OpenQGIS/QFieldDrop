@@ -25,15 +25,25 @@ class PushWorker(QThread):
         self.device = device
         self.file_path = file_path
         self.filename = filename
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         def cb(sent, total):
-            self.progress_signal.emit(sent, total)
+            if not self._cancelled:
+                self.progress_signal.emit(sent, total)
 
         success, msg = LocalSendClient.push_file(
-            self.device, self.file_path, self.filename, progress_callback=cb
+            self.device,
+            self.file_path,
+            self.filename,
+            progress_callback=cb,
+            is_cancelled=lambda: self._cancelled
         )
-        self.finished_signal.emit(success, msg)
+        if not self._cancelled:
+            self.finished_signal.emit(success, msg)
 
 
 class LocalSendTab(QWidget):
@@ -197,4 +207,10 @@ class LocalSendTab(QWidget):
             self.discovery.stop_discovery()
             self.discovery = None
         if self.push_worker and self.push_worker.isRunning():
-            self.push_worker.terminate()
+            self.push_worker.cancel()
+            try:
+                self.push_worker.progress_signal.disconnect()
+                self.push_worker.finished_signal.disconnect()
+            except Exception:
+                pass
+            self.push_worker.wait(500)

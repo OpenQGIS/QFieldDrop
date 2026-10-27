@@ -9,6 +9,7 @@ Native QGIS Desktop UI style.
 """
 
 import os
+import sys
 import shutil
 import zipfile
 import subprocess
@@ -21,13 +22,29 @@ from qgis.PyQt.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QApplication, QComboBox, QFileDialog
 )
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+
+
+class AdbPullWorker(QThread):
+    finished_signal = pyqtSignal(bool, str, str, str)  # success, msg, saved_path, dest_dir
+
+    def __init__(self, project_name: str, dest_dir: str, device_serial: str):
+        super().__init__()
+        self.project_name = project_name
+        self.dest_dir = dest_dir
+        self.device_serial = device_serial
+
+    def run(self):
+        success, msg, saved_path = AdbPusher.pull_project(
+            self.project_name, self.dest_dir, device_serial=self.device_serial
+        )
+        self.finished_signal.emit(success, msg, saved_path, self.dest_dir)
 
 
 class ReturnTab(QWidget):
@@ -48,6 +65,7 @@ class ReturnTab(QWidget):
         self.project_name = project_name
         self.current_upload_url = ""
         self.received_records: List[Dict[str, Any]] = []
+        self.pull_worker: Optional[AdbPullWorker] = None
 
         self._init_ui()
         self._update_qr()
@@ -210,12 +228,12 @@ class ReturnTab(QWidget):
 
         self.btn_pull.setEnabled(False)
         self.btn_pull.setText("正在从手机拉取中...")
-        QApplication.processEvents()
 
-        success, msg, saved_path = AdbPusher.pull_project(
-            self.project_name, dest_dir, device_serial=serial
-        )
+        self.pull_worker = AdbPullWorker(self.project_name, dest_dir, serial)
+        self.pull_worker.finished_signal.connect(self._on_adb_pull_finished)
+        self.pull_worker.start()
 
+    def _on_adb_pull_finished(self, success: bool, msg: str, saved_path: str, dest_dir: str):
         self.btn_pull.setEnabled(True)
         self.btn_pull.setText("一键拉回手机外业成果 (ADB)")
 
@@ -314,9 +332,14 @@ class ReturnTab(QWidget):
             QMessageBox.warning(self, "提示", "所选文件不是 .zip 格式。")
             return
 
-        dest = os.path.join(os.path.dirname(p), "unzipped_" + os.path.splitext(os.path.basename(p))[0])
+        dest = os.path.normpath(os.path.join(os.path.dirname(p), "unzipped_" + os.path.splitext(os.path.basename(p))[0]))
+        os.makedirs(dest, exist_ok=True)
         try:
             with zipfile.ZipFile(p, 'r') as zf:
+                for member in zf.infolist():
+                    target_member_path = os.path.normpath(os.path.join(dest, member.filename))
+                    if os.path.commonpath([dest, target_member_path]) != dest:
+                        raise ValueError(f"检测到非法路径越界条目: {member.filename}")
                 zf.extractall(dest)
             reply = QMessageBox.information(
                 self, "解压成功", f"成果压缩包已成功解压至：\n{dest}\n\n是否打开解压后的文件夹？",
@@ -342,7 +365,9 @@ class ReturnTab(QWidget):
             try:
                 if os.name == 'nt':
                     os.startfile(path)
-                elif os.name == 'posix':
+                elif sys.platform == 'darwin':
                     subprocess.run(['open', path])
+                else:
+                    subprocess.run(['xdg-open', path])
             except Exception:
                 pass
