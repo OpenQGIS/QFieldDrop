@@ -283,9 +283,8 @@ class LanDropServer:
                         for f in files:
                             full = os.path.join(root, f)
                             rel = os.path.relpath(full, mobile_src)
-                            # Put under root folder in zip (qfield_drop/...)
-                            arc = os.path.join("qfield_drop", rel)
-                            zf.write(full, arcname=arc)
+                            # QField expects metadata.txt and main.qml at the root of the plugin ZIP
+                            zf.write(full, arcname=rel)
                 # Also create plugin.zip alias
                 alias = os.path.join(self.serve_dir, "plugin.zip")
                 if not os.path.exists(alias):

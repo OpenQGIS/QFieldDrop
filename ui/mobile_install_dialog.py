@@ -2,7 +2,7 @@
 """
 QField LAN Drop - Mobile Companion Plugin Installer Dialog
 Provides 3 offline channels to install QFieldDrop Mobile:
-1. Camera QR scan: qfield:// deep link or browser download
+1. Camera QR scan: direct HTTP URL for QField's internal "Install from URL" QR scanner or browser download
 2. No camera URL input: In QField -> Plugins -> Install from URL -> http://<IP>:<PORT>/mobile.zip
 3. Zero-touch ADB: Silent direct sandbox injection
 Native QGIS Desktop UI style.
@@ -32,7 +32,7 @@ class MobileInstallDialog(QDialog):
     def __init__(self, port: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("QField 手机助手安装")
-        self.resize(560, 620)
+        self.resize(560, 640)
         self.port = port
         self.current_ip = "127.0.0.1"
 
@@ -61,8 +61,8 @@ class MobileInstallDialog(QDialog):
         ip_row.addWidget(self.ip_combo, 1)
         layout.addLayout(ip_row)
 
-        # 2. Channel 1: QR Code (For devices with camera)
-        group_qr = QGroupBox("通道一：手机扫码一键安装 (有摄像头)")
+        # 2. Channel 1: QR Code
+        group_qr = QGroupBox("通道一：扫码安装插件 (推荐)")
         qr_layout = QVBoxLayout(group_qr)
         qr_layout.setAlignment(ALIGN_CENTER)
 
@@ -72,7 +72,12 @@ class MobileInstallDialog(QDialog):
         self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
         qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
 
-        qr_tip = QLabel("使用手机自带相机扫码，直接唤醒 QField 导入安装助手插件。")
+        qr_tip = QLabel(
+            "<b>最佳方式：</b>在手机 QField 中打开【设置】→【插件】→【从 URL 安装】，<br>"
+            "点击输入框右侧的 <b>📷 扫码图标</b> 扫描此码，即可直接下载并激活！<br>"
+            "<span style='color: #64748B; font-size: 11px;'>（注：若用手机浏览器扫码，则自动下载 ZIP 安装包，在 QField 中【从压缩包安装】）</span>"
+        )
+        qr_tip.setWordWrap(True)
         qr_tip.setAlignment(ALIGN_CENTER)
         qr_layout.addWidget(qr_tip)
 
@@ -83,7 +88,7 @@ class MobileInstallDialog(QDialog):
         url_layout = QVBoxLayout(group_url)
 
         url_desc = QLabel(
-            "手机打开 QField，进入【齿轮设置】→【插件 (Plugins)】→【从 URL 安装 (Install from URL)】，输入："
+            "手机打开 QField，进入【设置】→【插件 (Plugins)】→【从 URL 安装 (Install from URL)】，输入："
         )
         url_desc.setWordWrap(True)
         url_layout.addWidget(url_desc)
@@ -156,11 +161,9 @@ class MobileInstallDialog(QDialog):
         download_url = f"http://{self.current_ip}:{self.port}/mobile.zip"
         self.url_edit.setText(download_url)
 
-        # QField install plugin deep link
-        encoded_url = urllib.parse.quote(download_url, safe=':/')
-        deeplink = f"qfield://local?import={encoded_url}"
-
-        matrix = generate_qr_matrix(deeplink, ecc='M')
+        # Note: In QField, plugins are installed via clean HTTP URL!
+        # Scanning from QField's "Install from URL" QR scanner directly parses this download URL.
+        matrix = generate_qr_matrix(download_url, ecc='M')
         pixmap = render_qr_to_qpixmap(matrix, target_size=170, border_modules=2)
         if pixmap:
             self.qr_label.setPixmap(pixmap)
@@ -232,8 +235,8 @@ class MobileInstallDialog(QDialog):
                     for f in files:
                         full = os.path.join(root, f)
                         rel = os.path.relpath(full, mobile_src)
-                        arc = os.path.join("qfield_drop", rel)
-                        zf.write(full, arcname=arc)
+                        # Put files at root of ZIP for QField plugin compatibility
+                        zf.write(full, arcname=rel)
             QMessageBox.information(
                 self, "导出成功",
                 f"离线安装包已保存至：\n{file_path}\n\n可将其发送至手机，在 QField【插件】→【从压缩包安装】生效。"
