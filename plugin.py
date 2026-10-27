@@ -161,8 +161,15 @@ class QFieldDropPlugin:
         self._clean_stale_actions()
 
     def run_send(self):
-        """Triggered by [📤 投送工程至 QField] button."""
+        """Triggered by [投送工程至 QField] button."""
         try:
+            if getattr(self, '_standalone_server', None):
+                try:
+                    self._standalone_server.stop()
+                except Exception:
+                    pass
+                self._standalone_server = None
+
             if self._is_dialog_active():
                 self.dlg.tabs.setCurrentIndex(0)
                 self.dlg.raise_()
@@ -184,6 +191,13 @@ class QFieldDropPlugin:
     def run_receive(self):
         """Triggered by [接收 QField 成果] button (Zero-overhead, instant open)."""
         try:
+            if getattr(self, '_standalone_server', None):
+                try:
+                    self._standalone_server.stop()
+                except Exception:
+                    pass
+                self._standalone_server = None
+
             if self._is_dialog_active():
                 self.dlg.tabs.setCurrentIndex(2)
                 self.dlg.raise_()
@@ -222,6 +236,15 @@ class QFieldDropPlugin:
                     port = self._standalone_server.port
 
             self.mobile_dlg = MobileInstallDialog(port, self.iface.mainWindow())
+            def _cleanup_standalone():
+                if getattr(self, '_standalone_server', None):
+                    try:
+                        self._standalone_server.stop()
+                    except Exception:
+                        pass
+                    self._standalone_server = None
+
+            self.mobile_dlg.finished.connect(_cleanup_standalone)
             self.mobile_dlg.show()
             self.mobile_dlg.raise_()
             self.mobile_dlg.activateWindow()

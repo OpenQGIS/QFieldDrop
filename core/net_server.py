@@ -305,7 +305,7 @@ class LanDropServer:
                 self.send_response(200)
                 self.send_header("Content-Type", "application/zip")
                 effective_name = download_name or filename
-                safe_ascii_name = "download.zip" if not download_name else download_name
+                safe_ascii_name = "project.zip" if not download_name else download_name
                 encoded_utf8_name = urllib.parse.quote(effective_name)
                 self.send_header(
                     "Content-Disposition",
@@ -315,6 +315,16 @@ class LanDropServer:
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.send_header("Pragma", "no-cache")
                 self.send_header("Expires", "0")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+                self.end_headers()
+
+            def do_OPTIONS(self):
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Range")
+                self.send_header("Content-Length", "0")
                 self.end_headers()
 
             def do_HEAD(self):
@@ -471,6 +481,9 @@ class LanDropServer:
             def log_message(self, format, *args):
                 # Suppress stdout logging to prevent polluting QGIS console
                 pass
+
+        # Enable immediate address reuse across fast restarts
+        ThreadingHTTPServer.allow_reuse_address = True
 
         # Try to bind ports starting from self.port
         bound = False

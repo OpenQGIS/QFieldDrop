@@ -38,10 +38,10 @@ class QrDropTab(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
 
         # 1. Main Centerpiece: Clean QR Code Card
-        qr_group = QGroupBox("手机扫码直接导入")
+        qr_group = QGroupBox("手机扫码快速导入工程")
         qr_layout = QVBoxLayout(qr_group)
         qr_layout.setAlignment(ALIGN_CENTER)
-        qr_layout.setContentsMargins(12, 14, 12, 14)
+        qr_layout.setContentsMargins(12, 12, 12, 12)
 
         self.qr_label = QLabel()
         self.qr_label.setFixedSize(220, 220)
@@ -50,14 +50,32 @@ class QrDropTab(QWidget):
         self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
         qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
 
-        scan_tip = QLabel("手机自带相机或 QField 扫码，一秒调起工程导入")
-        scan_tip.setAlignment(ALIGN_CENTER)
-        scan_tip.setStyleSheet("font-weight: bold; font-size: 13px; margin-top: 6px;")
-        qr_layout.addWidget(scan_tip)
+        # Mode Selection Radio Buttons directly under QR
+        mode_box = QHBoxLayout()
+        mode_box.setAlignment(ALIGN_CENTER)
+        self.btn_group = QButtonGroup(self)
 
-        net_tip = QLabel("需确保手机与电脑已连接到同一 Wi-Fi 或手机热点")
-        net_tip.setAlignment(ALIGN_CENTER)
-        qr_layout.addWidget(net_tip)
+        self.rb_http = QRadioButton("QField 内部扫码 / 浏览器 (推荐)")
+        self.rb_http.setChecked(True)
+        self.rb_http.setToolTip("标准 HTTP 地址：在 QField【从 URL 导入】点击扫码小图标，或手机浏览器扫码下载")
+
+        self.rb_deeplink = QRadioButton("系统相机直达 (qfield://)")
+        self.rb_deeplink.setToolTip("使用 qfield:// 协议：手机自带相机扫码直接唤醒 QField 应用")
+
+        self.btn_group.addButton(self.rb_http)
+        self.btn_group.addButton(self.rb_deeplink)
+        self.rb_http.toggled.connect(self._update_urls_and_qr)
+        self.rb_deeplink.toggled.connect(self._update_urls_and_qr)
+
+        mode_box.addWidget(self.rb_http)
+        mode_box.addSpacing(16)
+        mode_box.addWidget(self.rb_deeplink)
+        qr_layout.addLayout(mode_box)
+
+        self.scan_tip = QLabel("提示：打开 QField ➔【从 URL 导入工程】➔ 点击输入框右侧 📷 扫码图标扫描")
+        self.scan_tip.setAlignment(ALIGN_CENTER)
+        self.scan_tip.setStyleSheet("color: #475569; font-size: 11px; margin-top: 4px;")
+        qr_layout.addWidget(self.scan_tip)
 
         layout.addWidget(qr_group)
 
@@ -98,22 +116,8 @@ class QrDropTab(QWidget):
         ip_row.addWidget(btn_firewall)
         adv_layout.addLayout(ip_row)
 
-        # Mode Selection
-        mode_row = QHBoxLayout()
-        self.btn_group = QButtonGroup(self)
-        self.rb_deeplink = QRadioButton("QField 唤醒码 (qfield://)")
-        self.rb_deeplink.setChecked(True)
-        self.rb_http = QRadioButton("标准 HTTP 下载码 (浏览器)")
-        self.btn_group.addButton(self.rb_deeplink)
-        self.btn_group.addButton(self.rb_http)
-        self.rb_deeplink.toggled.connect(self._update_urls_and_qr)
-        mode_row.addWidget(self.rb_deeplink)
-        mode_row.addWidget(self.rb_http)
-        mode_row.addStretch()
-
-        self.mdns_lbl = QLabel(f"通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
-        mode_row.addWidget(self.mdns_lbl)
-        adv_layout.addLayout(mode_row)
+        self.mdns_lbl = QLabel(f"局域网通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+        adv_layout.addWidget(self.mdns_lbl)
 
         self.adv_group.hide()
         layout.addWidget(self.adv_group)
@@ -139,16 +143,24 @@ class QrDropTab(QWidget):
         self.port = port
         self.zip_filename = zip_filename
         if hasattr(self, 'mdns_lbl'):
-            self.mdns_lbl.setText(f"通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+            self.mdns_lbl.setText(f"局域网通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
         self._update_urls_and_qr()
 
     def _update_urls_and_qr(self):
         ip = self.get_selected_ip()
         self.current_http_url = f"http://{ip}:{self.port}/project.zip"
-        encoded_import = urllib.parse.quote(self.current_http_url, safe=':/')
+        # Properly percent-encode the parameter for deep link
+        encoded_import = urllib.parse.quote(self.current_http_url, safe='')
         self.current_deeplink_url = f"qfield://local?import={encoded_import}"
 
-        target = self.current_deeplink_url if self.rb_deeplink.isChecked() else self.current_http_url
+        if self.rb_http.isChecked():
+            target = self.current_http_url
+            if hasattr(self, 'scan_tip'):
+                self.scan_tip.setText("提示：在 QField ➔【从 URL 导入工程】点击输入框右侧 📷 扫码图标扫描")
+        else:
+            target = self.current_deeplink_url
+            if hasattr(self, 'scan_tip'):
+                self.scan_tip.setText("提示：使用手机自带相机扫码，直接唤醒 QField 应用进行导入")
 
         matrix = generate_qr_matrix(target, ecc='M')
         pixmap = render_qr_to_qpixmap(matrix, target_size=210, border_modules=2)
@@ -156,12 +168,12 @@ class QrDropTab(QWidget):
             self.qr_label.setPixmap(pixmap)
 
     def _copy_link_auto(self):
-        target = self.current_deeplink_url if self.rb_deeplink.isChecked() else self.current_http_url
+        target = self.current_http_url if self.rb_http.isChecked() else self.current_deeplink_url
         QApplication.clipboard().setText(target)
         QMessageBox.information(
             self,
             "链接已复制",
-            f"直链已复制至剪贴板：\n{target}\n\n可在微信/备忘录发送至手机或在手机浏览器中打开。"
+            f"直达链接已复制至剪贴板：\n{target}\n\n在 QField【从 URL 导入工程】中粘贴或发送至手机浏览器打开。"
         )
 
     def _copy_firewall_cmd(self):

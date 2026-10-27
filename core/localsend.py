@@ -2,7 +2,7 @@
 """
 LocalSend Protocol v2 Implementation for QGIS LAN Drop.
 Supports:
-1. Zero-config LAN device discovery via UDP Multicast (224.0.0.167:53317) & Subnet HTTP scanning.
+1. Zero-config LAN device discovery via UDP Multicast (224.0.0.167:53317), LAN Subnet Broadcast, and concurrent Subnet HTTP scanning.
 2. Direct push of QGIS project .zip to phone LocalSend app without scanning QR codes.
 3. 100% pure Python standard library (socket, json, urllib, ssl) - zero pip dependencies.
 """
@@ -17,6 +17,7 @@ import struct
 import threading
 import urllib.request
 import urllib.error
+import concurrent.futures
 from typing import Dict, List, Optional, Callable, Tuple
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
@@ -74,7 +75,7 @@ class DiscoverySignals(QObject):
 
 
 class LocalSendDiscovery:
-    """Discovers nearby LocalSend mobile/desktop clients."""
+    """Discovers nearby LocalSend mobile/desktop clients via Multicast, Broadcast, and HTTP Subnet Probing."""
     def __init__(self, local_ip: str = "127.0.0.1"):
         self.local_ip = local_ip
         self.signals = DiscoverySignals()
@@ -82,6 +83,33 @@ class LocalSendDiscovery:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._udp_sock: Optional[socket.socket] = None
+
+    @classmethod
+    def fetch_device_info(cls, ip: str, port: int = LOCALSEND_PORT, timeout: float = 1.5) -> Optional[LocalSendDevice]:
+        """Probes a device directly by IP and port via LocalSend REST API v2."""
+        for proto in ("https", "http"):
+            url = f"{proto}://{ip}:{port}/api/localsend/v2/info"
+            req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-LAN-Drop'})
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=_get_ssl_context()) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode('utf-8'))
+                        alias = data.get('alias', 'Unknown Device')
+                        model = data.get('deviceModel', '')
+                        dtype = data.get('deviceType', 'mobile')
+                        fingerprint = data.get('fingerprint', '')
+                        return LocalSendDevice(
+                            ip=ip,
+                            port=port,
+                            alias=alias,
+                            device_model=model,
+                            device_type=dtype,
+                            fingerprint=fingerprint,
+                            https=(proto == "https")
+                        )
+            except Exception:
+                continue
+        return None
 
     def start_discovery(self, subnet_scan: bool = True):
         self._running = True
@@ -99,18 +127,18 @@ class LocalSendDiscovery:
             self._udp_sock = None
 
     def _run(self, subnet_scan: bool):
-        self.signals.status_updated.emit("正在监听 UDP 组播广播...")
+        self.signals.status_updated.emit("正在监听 UDP 组播与广播...")
 
-        # 1. Start UDP Multicast listener & announce
+        # 1. Start UDP Multicast listener & announce in background
         udp_thread = threading.Thread(target=self._listen_and_announce_udp, daemon=True)
         udp_thread.start()
 
-        # 2. Optionally scan active LAN subnet
+        # 2. Concurrently scan active LAN subnet via TCP/HTTP
         if subnet_scan and self.local_ip and not self.local_ip.startswith("127."):
-            self.signals.status_updated.emit("正在扫描局域网网段设备...")
+            self.signals.status_updated.emit("正在并发扫描局域网网段设备...")
             self._scan_subnet()
 
-        # Wait for UDP listener to complete its discovery window
+        # Wait for UDP listener to complete
         udp_thread.join(timeout=3.5)
         if self._running:
             self.signals.discovery_finished.emit()
@@ -121,18 +149,34 @@ class LocalSendDiscovery:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             self._udp_sock = sock
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.settimeout(0.5)
 
-            # Bind to multicast port
+            # Bind to multicast port, fallback to any port if 53317 is occupied locally
             try:
                 sock.bind(('', LOCALSEND_PORT))
-                mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
             except Exception:
-                # Port might be occupied by local LocalSend client; use arbitrary port to broadcast query
-                pass
+                try:
+                    sock.bind(('', 0))
+                except Exception:
+                    pass
 
-            # Send announcement query
+            # Configure Multicast Membership and Interface
+            if self.local_ip and not self.local_ip.startswith("127."):
+                try:
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
+                except Exception:
+                    pass
+                try:
+                    mreq = struct.pack("4s4s", socket.inet_aton(MULTICAST_GROUP), socket.inet_aton(self.local_ip))
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+                except Exception:
+                    try:
+                        mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
+                        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+                    except Exception:
+                        pass
+
             query_payload = json.dumps({
                 "alias": "QGIS LAN Drop",
                 "version": "2.1",
@@ -145,14 +189,23 @@ class LocalSendDiscovery:
                 "announce": True
             }).encode('utf-8')
 
+            # Send announcement via Multicast and Subnet Broadcasts
             try:
                 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
                 sock.sendto(query_payload, (MULTICAST_GROUP, LOCALSEND_PORT))
             except Exception:
                 pass
 
-            # Listen for responses for up to ~2.5 seconds (5 * 0.5s)
-            for _ in range(5):
+            if self.local_ip and "." in self.local_ip:
+                try:
+                    bcast_ip = f"{self.local_ip.rsplit('.', 1)[0]}.255"
+                    sock.sendto(query_payload, (bcast_ip, LOCALSEND_PORT))
+                    sock.sendto(query_payload, ("255.255.255.255", LOCALSEND_PORT))
+                except Exception:
+                    pass
+
+            # Listen for responses for up to ~3.0 seconds
+            for _ in range(6):
                 if not self._running:
                     break
                 try:
@@ -188,7 +241,7 @@ class LocalSendDiscovery:
                     pass
 
     def _scan_subnet(self):
-        """Scans neighboring IPs in the same /24 subnet for LocalSend HTTP info endpoint."""
+        """Scans neighboring IPs in the same /24 subnet for LocalSend HTTP info endpoint concurrently."""
         parts = self.local_ip.split('.')
         if len(parts) != 4:
             return
@@ -196,49 +249,49 @@ class LocalSendDiscovery:
         base_prefix = f"{parts[0]}.{parts[1]}.{parts[2]}."
         my_last = int(parts[3])
 
-        # Prioritize IPs close to host IP (such as gateway and recent devices)
-        scan_indices = []
-        for offset in range(1, 20):
+        # Prioritize IPs close to host IP and common mobile DHCP ranges
+        prioritized = []
+        for offset in range(1, 25):
             if my_last - offset >= 1:
-                scan_indices.append(my_last - offset)
+                prioritized.append(my_last - offset)
             if my_last + offset <= 254:
-                scan_indices.append(my_last + offset)
+                prioritized.append(my_last + offset)
 
-        # Include common mobile gateway / DHCP assigns (1, 2, 100, 101, 102...)
         for special in [1, 2, 43, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110]:
-            if special not in scan_indices and special != my_last:
-                scan_indices.append(special)
+            if special not in prioritized and special != my_last:
+                prioritized.append(special)
 
-        def probe_ip(ip):
-            if not self._running or ip in self.discovered_devices:
+        remaining = [i for i in range(1, 255) if i != my_last and i not in prioritized]
+        all_indices = prioritized + remaining
+
+        def probe_index(idx):
+            if not self._running:
                 return
-            for proto in ("https", "http"):
-                url = f"{proto}://{ip}:{LOCALSEND_PORT}/api/localsend/v2/info"
-                req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-LAN-Drop'})
-                try:
-                    with urllib.request.urlopen(req, timeout=0.35, context=_get_ssl_context()) as resp:
-                        if resp.status == 200:
-                            data = json.loads(resp.read().decode('utf-8'))
-                            alias = data.get('alias', 'Unknown')
-                            model = data.get('deviceModel', '')
-                            dtype = data.get('deviceType', 'mobile')
-                            dev = LocalSendDevice(ip, LOCALSEND_PORT, alias, model, dtype, https=(proto == "https"))
-                            if ip not in self.discovered_devices:
-                                self.discovered_devices[ip] = dev
-                                self.signals.device_found.emit(dev)
-                            break
-                except Exception:
-                    continue
+            target_ip = f"{base_prefix}{idx}"
+            if target_ip in self.discovered_devices:
+                return
 
-        threads = []
-        for idx in scan_indices[:35]:
-            ip = f"{base_prefix}{idx}"
-            t = threading.Thread(target=probe_ip, args=(ip,), daemon=True)
-            threads.append(t)
-            t.start()
+            # Fast TCP port probe with short timeout to prevent blocking
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.35)
+                res = s.connect_ex((target_ip, LOCALSEND_PORT))
+                s.close()
+                if res != 0:
+                    return
+            except Exception:
+                return
 
-        for t in threads:
-            t.join(timeout=0.6)
+            dev = self.fetch_device_info(target_ip, LOCALSEND_PORT, timeout=1.0)
+            if dev and self._running and target_ip not in self.discovered_devices:
+                self.discovered_devices[target_ip] = dev
+                self.signals.device_found.emit(dev)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+            futures = [executor.submit(probe_index, idx) for idx in all_indices]
+            for f in concurrent.futures.as_completed(futures):
+                if not self._running:
+                    break
 
 
 class LocalSendClient:
