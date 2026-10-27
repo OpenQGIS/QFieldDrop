@@ -1,0 +1,333 @@
+# -*- coding: utf-8 -*-
+"""
+QField LAN Drop - Main Share Dialog Controller
+Native QGIS Desktop UI style:
+- Respects system/QGIS palette and Fusion/Windows themes (Light & Dark)
+- Standard QGroupBox, QTabWidget, and QDialogButtonBox
+- No web CSS card wrappers or pastel backgrounds
+"""
+
+import os
+import shutil
+from typing import Optional
+
+from qgis.core import QgsProject
+from qgis.PyQt.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
+    QPushButton, QTabWidget, QProgressBar, QMessageBox,
+    QDialogButtonBox, QWidget
+)
+from qgis.PyQt.QtCore import QTimer, Qt
+
+from ..core.net_server import LanDropServer
+from ..core.packager import ProjectPackager
+from ..core.mdns_server import MdnsResponder
+
+from .tab_qr import QrDropTab
+from .tab_localsend import LocalSendTab
+from .tab_advanced import AdvancedTab
+from .tab_return import ReturnTab
+from .external_layers_dialog import ExternalLayersDialog
+from .icon_helper import get_icon
+
+
+class QFieldLanDropDialog(QDialog):
+    def __init__(self, parent=None, initial_tab: int = 0, auto_package: bool = True):
+        super().__init__(parent)
+        self.initial_tab = initial_tab
+        self.auto_package = auto_package
+        title_suffix = " - 投送至手机" if initial_tab == 0 else " - 接收外业成果"
+        self.setWindowTitle(f"QField 局域网直传{title_suffix}")
+        self.resize(560, 620)
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+
+        self._cleaned_up = False
+        self.server: Optional[LanDropServer] = None
+        self.mdns: Optional[MdnsResponder] = None
+        self.dist_dir: Optional[str] = None
+        self.pkg_info = {}
+        self.port = 8899
+
+        # Step 1: Check project and package if needed
+        project = QgsProject.instance()
+        if not project.fileName():
+            QMessageBox.warning(
+                self,
+                "工程未保存",
+                "当前 QGIS 工程尚未保存到本地磁盘！\n\n请先保存工程文件（.qgz 或 .qgs）后再进行局域网直传。"
+            )
+            QTimer.singleShot(0, self.close)
+            return
+
+        if self.auto_package:
+            if not self._prepare_package():
+                QTimer.singleShot(0, self.close)
+                return
+        else:
+            # Lightweight init for receive mode without packaging delay
+            import tempfile
+            self.dist_dir = tempfile.mkdtemp(prefix="qfield_drop_")
+            proj_name = project.baseName() or "qfield_project"
+            self.pkg_info = {
+                'dist_dir': self.dist_dir,
+                'zip_path': os.path.join(self.dist_dir, f"{proj_name}.zip"),
+                'zip_filename': f"{proj_name}.zip",
+                'project_name': proj_name,
+                'size_bytes': 0,
+                'file_count': 0,
+                'external_layers': []
+            }
+
+        # Step 2: Start background server & mDNS
+        self._init_server()
+
+        # Step 3: Build Native UI
+        self._init_ui()
+
+        # Step 4: Set initial active tab
+        if 0 <= self.initial_tab < self.tabs.count():
+            self.tabs.setCurrentIndex(self.initial_tab)
+
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, idx: int):
+        if idx in (0, 1) and self.pkg_info.get('size_bytes', 0) == 0:
+            self._repackage()
+
+    def _prepare_package(self) -> bool:
+        project = QgsProject.instance()
+        if not project.fileName():
+            return False
+
+        try:
+            self.pkg_info = ProjectPackager.package_project(project)
+            self.dist_dir = self.pkg_info['dist_dir']
+            return True
+        except Exception as e:
+            QMessageBox.critical(self, "打包失败", f"打包工程出现错误：\n{str(e)}")
+            return False
+
+    def _init_server(self):
+        if not self.pkg_info:
+            return
+
+        zip_filename = self.pkg_info['zip_filename']
+        project = QgsProject.instance()
+        project_dir = os.path.dirname(project.fileName()) if project.fileName() else ""
+        upload_dir = os.path.join(project_dir, "_qfield_return")
+        self.server = LanDropServer(self.dist_dir, zip_filename, start_port=8899, upload_dir=upload_dir)
+        self.port = self.server.start()
+
+        self.server.signals.client_connected.connect(self._on_client_connected)
+        self.server.signals.transfer_progress.connect(self._on_transfer_progress)
+        self.server.signals.transfer_completed.connect(self._on_transfer_done)
+        self.server.signals.file_received.connect(self._on_file_received)
+        self.server.signals.server_error.connect(self._on_server_error)
+
+        self.mdns = MdnsResponder("qgis-drop.local", "127.0.0.1")
+        self.mdns.start()
+
+    def _init_ui(self):
+        # Native QGIS dialog layout: clean margins, no artificial stylesheet overrides
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(9, 9, 9, 9)
+        layout.setSpacing(8)
+
+        # 1. Project Info Native GroupBox
+        info_group = QGroupBox("当前工程")
+        info_layout = QHBoxLayout(info_group)
+        info_layout.setContentsMargins(9, 8, 9, 8)
+
+        proj_name = self.pkg_info.get('project_name', '工程')
+        size_bytes = self.pkg_info.get('size_bytes', 0)
+        size_mb = size_bytes / (1024 * 1024)
+        file_count = self.pkg_info.get('file_count', 0)
+
+        if size_bytes > 0:
+            meta_text = f"工程名: <b>{proj_name}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 压缩包大小: <b>{size_mb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; 包含文件: <b>{file_count} 个</b>"
+        else:
+            meta_text = f"工程名: <b>{proj_name}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 状态: <b>接收外业成果就绪</b> (未打包)"
+
+        self.meta_lbl = QLabel(meta_text)
+        info_layout.addWidget(self.meta_lbl)
+        info_layout.addStretch()
+
+        ext_count = len(self.pkg_info.get('external_layers', []))
+        if ext_count > 0:
+            btn_warn = QPushButton(f"{ext_count} 个外部图层")
+            btn_warn.setIcon(get_icon("alert-triangle"))
+            btn_warn.setToolTip("查看位于工程目录外的图层")
+            btn_warn.clicked.connect(self._show_external_layers)
+            info_layout.addWidget(btn_warn)
+
+        btn_refresh = QPushButton("重新打包")
+        btn_refresh.setIcon(get_icon("refresh"))
+        btn_refresh.clicked.connect(self._repackage)
+        info_layout.addWidget(btn_refresh)
+
+        layout.addWidget(info_group)
+
+        # 2. Native QTabWidget
+        self.tabs = QTabWidget()
+
+        # Tab 0: QR Code Scan & DeepLink
+        self.tab_qr = QrDropTab(self.port, self.pkg_info['zip_filename'], self)
+        self.tab_qr.ip_changed.connect(self._on_ip_changed)
+        self.tabs.addTab(self.tab_qr, get_icon("qr"), "扫码唤醒直传")
+
+        if self.mdns:
+            self.mdns.update_ip(self.tab_qr.get_selected_ip())
+
+        # Tab 1: LocalSend Push
+        self.tab_localsend = LocalSendTab(
+            get_local_ip_cb=self.tab_qr.get_selected_ip,
+            zip_path=self.pkg_info['zip_path'],
+            zip_filename=self.pkg_info['zip_filename'],
+            parent=self
+        )
+        self.tabs.addTab(self.tab_localsend, get_icon("radio"), "LocalSend 免扫码")
+
+        # Tab 2: Return / Upload Back
+        project = QgsProject.instance()
+        project_dir = os.path.dirname(project.fileName()) if project.fileName() else ""
+        self.tab_return = ReturnTab(
+            get_local_ip_cb=self.tab_qr.get_selected_ip,
+            port=self.port,
+            project_dir=project_dir,
+            project_name=self.pkg_info.get('project_name', 'qfield_project'),
+            parent=self
+        )
+        self.tabs.addTab(self.tab_return, get_icon("download"), "外业成果回传")
+
+        # Tab 3: Advanced
+        self.tab_advanced = AdvancedTab(
+            get_project_dir_cb=lambda: project_dir,
+            get_project_name_cb=lambda: self.pkg_info.get('project_name', 'qfield_project'),
+            port=self.port,
+            parent=self
+        )
+        self.tabs.addTab(self.tab_advanced, get_icon("settings"), "高阶通道")
+
+        layout.addWidget(self.tabs, 1)
+
+        # 3. Global Download Progress Bar (hidden by default)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.hide()
+        layout.addWidget(self.progress_bar)
+
+        # 4. Bottom Native Bar: Status on Left + Close Button on Right
+        bottom_row = QHBoxLayout()
+
+        self.status_icon = QLabel()
+        self.status_icon.setPixmap(get_icon("globe").pixmap(16, 16))
+        bottom_row.addWidget(self.status_icon)
+
+        self.status_box = QLabel(f"服务已就绪，正在监听局域网端口 :{self.port}")
+        bottom_row.addWidget(self.status_box, 1)
+
+        # Native Dialog Close Button
+        btn_close = QPushButton("关闭")
+        btn_close.clicked.connect(self.close)
+        bottom_row.addWidget(btn_close)
+
+        layout.addLayout(bottom_row)
+
+    def _on_ip_changed(self, ip: str):
+        if self.mdns:
+            self.mdns.update_ip(ip)
+        if hasattr(self, 'tab_return') and self.tab_return:
+            self.tab_return.update_ip_and_port(self.port)
+
+    def _show_external_layers(self):
+        layers = self.pkg_info.get('external_layers', [])
+        dlg = ExternalLayersDialog(layers, self)
+        dlg.exec_()
+
+    def _repackage(self):
+        if self.server:
+            self.server.stop()
+
+        if self.dist_dir and os.path.exists(self.dist_dir):
+            shutil.rmtree(self.dist_dir, ignore_errors=True)
+
+        if not self._prepare_package():
+            return
+
+        self._init_server()
+        self.tab_qr.update_port_and_file(self.port, self.pkg_info['zip_filename'])
+        self.tab_localsend.update_package(self.pkg_info['zip_path'], self.pkg_info['zip_filename'])
+        if hasattr(self, 'tab_return') and self.tab_return:
+            self.tab_return.update_ip_and_port(self.port)
+
+        if hasattr(self, 'meta_lbl') and self.meta_lbl:
+            pname = self.pkg_info.get('project_name', '工程')
+            smb = self.pkg_info.get('size_bytes', 0) / (1024 * 1024)
+            fcnt = self.pkg_info.get('file_count', 0)
+            self.meta_lbl.setText(
+                f"工程名: <b>{pname}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 压缩包大小: <b>{smb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; 包含文件: <b>{fcnt} 个</b>"
+            )
+
+        self.status_box.setText("工程已重新打包，分发载荷已刷新！")
+
+    def _on_client_connected(self, client_ip: str):
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+        self.status_box.setText(f"设备 [{client_ip}] 已连接，正在传输工程包...")
+
+    def _on_transfer_progress(self, client_ip: str, sent_bytes: int, total_bytes: int):
+        if total_bytes > 0:
+            pct = int((sent_bytes / total_bytes) * 100)
+            self.progress_bar.setValue(pct)
+            sent_mb = sent_bytes / (1024 * 1024)
+            tot_mb = total_bytes / (1024 * 1024)
+            self.status_box.setText(f"向 [{client_ip}] 发送数据: {sent_mb:.2f} MB / {tot_mb:.2f} MB ({pct}%)")
+
+    def _on_transfer_done(self, client_ip: str, filename: str):
+        self.progress_bar.setValue(100)
+        self.status_box.setText(f"成功投送至设备 [{client_ip}]！手机 QField 正在载入。")
+
+    def _on_file_received(self, client_ip: str, saved_path: str, file_size: int):
+        if hasattr(self, 'tab_return') and self.tab_return:
+            self.tab_return.on_file_received(client_ip, saved_path, file_size)
+
+        fname = os.path.basename(saved_path)
+        sz_mb = file_size / (1024 * 1024)
+        self.status_box.setText(f"收到来自手机 [{client_ip}] 的成果：{fname} ({sz_mb:.2f} MB)")
+        self.tabs.setCurrentWidget(self.tab_return)
+        QMessageBox.information(
+            self,
+            "收到外业成果",
+            f"成功接收来自外业手机 [{client_ip}] 的成果！\n\n"
+            f"文件名: {fname}\n"
+            f"大小: {sz_mb:.2f} MB\n"
+            f"存储位置: {saved_path}\n\n"
+            "已自动归档存入工程的 _qfield_return 目录中。"
+        )
+
+    def _on_server_error(self, err_msg: str):
+        self.status_box.setText(f"服务异常: {err_msg}")
+
+    def closeEvent(self, event):
+        if hasattr(self, 'tab_localsend') and self.tab_localsend:
+            self.tab_localsend.stop()
+
+        if self.mdns:
+            self.mdns.stop()
+            self.mdns = None
+
+        if self.server:
+            self.server.stop()
+            self.server = None
+
+        if self.dist_dir and os.path.exists(self.dist_dir):
+            shutil.rmtree(self.dist_dir, ignore_errors=True)
+            self.dist_dir = None
+
+        super().closeEvent(event)
+
+    def reject(self):
+        self.close()

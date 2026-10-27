@@ -1,0 +1,6 @@
+[general]
+name=LAN Drop Receiver
+description=One-click pull project from desktop QGIS over LAN / Hotspot
+author=OpenQGIS
+version=1.0.0
+icon=icon.svg

@@ -1,0 +1,16 @@
+[general]
+name=QField LAN Drop
+qgisMinimumVersion=3.0
+description=Zero-config instant LAN/Hotspot direct transfer of QGIS projects to QField via QR code & Deep Link.
+version=1.0.0
+author=OpenQGIS
+email=dev@openqgis.org
+about=Directly transfer QGIS projects to mobile QField over local Wi-Fi or mobile hotspot using QR code and qfield:// deep link. Zero cloud upload, no MTP cables, and zero external pip dependencies.
+tracker=https://github.com/OpenQGIS/QFieldDrop/issues
+repository=https://github.com/OpenQGIS/QFieldDrop
+hasProcessingProvider=no
+category=Plugins
+experimental=False
+deprecated=False
+tags=qfield, lan, airdrop, transfer, mobile, qr, offline
+icon=icon.svg

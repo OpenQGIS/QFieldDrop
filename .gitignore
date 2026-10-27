@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Packaging & Returns
+_qfield_return/
+*.zip
+*.qgz~
+*.qgs~
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
