@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="mobile_bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0284C7;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0F172A" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Container -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#mobile_bg)" filter="url(#shadow)" />
+
+  <!-- Laptop Silhouette at Top -->
+  <rect x="18" y="12" width="28" height="18" rx="2" fill="#FFFFFF" opacity="0.95" />
+  <rect x="21" y="15" width="22" height="12" rx="1" fill="#0F172A" />
+  <path d="M14 30 L50 30 L48 33 L16 33 Z" fill="#E2E8F0" />
+
+  <!-- Outgoing Upward Arrow -->
+  <circle cx="32" cy="42" r="14" fill="#2563EB" stroke="#FFFFFF" stroke-width="2" />
+  <path d="M32 49 L32 35 M27 40 L32 35 L37 40" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

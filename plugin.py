@@ -79,10 +79,14 @@ class QFieldDropPlugin:
         if not os.path.exists(icon_receive_path):
             icon_receive_path = os.path.join(self.plugin_dir, "icon_receive.svg")
 
+        icon_mobile_path = os.path.join(self.plugin_dir, "icon", "icon_mobile.svg")
+        if not os.path.exists(icon_mobile_path):
+            icon_mobile_path = os.path.join(self.plugin_dir, "icon_mobile.svg")
+
         # Action 1: Outbound Dispatch
         self.action_send = QAction(
             QIcon(icon_send_path),
-            "📤 投送工程至 QField (Drop Out)",
+            "投送工程至 QField (Drop Out)",
             self.iface.mainWindow()
         )
         self.action_send.setObjectName("qfielddrop_action_send")
@@ -92,20 +96,32 @@ class QFieldDropPlugin:
         # Action 2: Inbound Return
         self.action_receive = QAction(
             QIcon(icon_receive_path),
-            "📥 接收 QField 成果 (Drop In)",
+            "接收 QField 成果 (Drop In)",
             self.iface.mainWindow()
         )
         self.action_receive.setObjectName("qfielddrop_action_receive")
         self.action_receive.setStatusTip("一键开启成果接收服务，从手机回传外业成果 (网页扫码 / ADB拉取，无需重新打包)")
         self.action_receive.triggered.connect(self.run_receive)
 
-        # Add both to Toolbar
+        # Action 3: Mobile Companion Installer
+        self.action_mobile = QAction(
+            QIcon(icon_mobile_path),
+            "安装 QField 手机助手 (Mobile Setup)",
+            self.iface.mainWindow()
+        )
+        self.action_mobile.setObjectName("qfielddrop_action_mobile")
+        self.action_mobile.setStatusTip("为手机 QField 安装配套助手插件 (扫码安装 / QField URL / ADB写入 / 离线ZIP)")
+        self.action_mobile.triggered.connect(self.run_mobile_install)
+
+        # Add all to Toolbar
         self.iface.addToolBarIcon(self.action_send)
         self.iface.addToolBarIcon(self.action_receive)
+        self.iface.addToolBarIcon(self.action_mobile)
 
         # Add to Menu
         self.iface.addPluginToMenu("&QField LAN Drop", self.action_send)
         self.iface.addPluginToMenu("&QField LAN Drop", self.action_receive)
+        self.iface.addPluginToMenu("&QField LAN Drop", self.action_mobile)
 
     def unload(self):
         """Cleans up toolbar icons and menu items when plugin is disabled/unloaded."""
@@ -116,21 +132,30 @@ class QFieldDropPlugin:
                 pass
             self.dlg = None
 
-        if self.action_send:
+        if hasattr(self, 'mobile_dlg') and self.mobile_dlg:
             try:
-                self.iface.removePluginMenu("&QField LAN Drop", self.action_send)
-                self.iface.removeToolBarIcon(self.action_send)
+                self.mobile_dlg.close()
             except Exception:
                 pass
-            self.action_send = None
+            self.mobile_dlg = None
 
-        if self.action_receive:
+        if hasattr(self, '_standalone_server') and self._standalone_server:
             try:
-                self.iface.removePluginMenu("&QField LAN Drop", self.action_receive)
-                self.iface.removeToolBarIcon(self.action_receive)
+                self._standalone_server.stop()
             except Exception:
                 pass
-            self.action_receive = None
+            self._standalone_server = None
+
+        for act in (self.action_send, self.action_receive, getattr(self, 'action_mobile', None)):
+            if act:
+                try:
+                    self.iface.removePluginMenu("&QField LAN Drop", act)
+                    self.iface.removeToolBarIcon(act)
+                except Exception:
+                    pass
+        self.action_send = None
+        self.action_receive = None
+        self.action_mobile = None
 
         # Ensure complete sweep of any residual actions
         self._clean_stale_actions()
@@ -157,7 +182,7 @@ class QFieldDropPlugin:
             )
 
     def run_receive(self):
-        """Triggered by [📥 接收 QField 成果] button (Zero-overhead, instant open)."""
+        """Triggered by [接收 QField 成果] button (Zero-overhead, instant open)."""
         try:
             if self._is_dialog_active():
                 self.dlg.tabs.setCurrentIndex(2)
@@ -175,6 +200,34 @@ class QFieldDropPlugin:
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "QField LAN Drop", f"打开接收对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+            )
+
+    def run_mobile_install(self):
+        """Triggered by [安装 QField 手机助手] button."""
+        from .ui.mobile_install_dialog import MobileInstallDialog
+        from .core.net_server import LanDropServer
+
+        try:
+            port = 8899
+            if self._is_dialog_active() and getattr(self.dlg, 'port', None):
+                port = self.dlg.port
+            else:
+                # Ensure local server is running for mobile.zip distribution
+                if not getattr(self, '_standalone_server', None) or not self._standalone_server.is_running:
+                    import tempfile
+                    t_dir = tempfile.mkdtemp(prefix="qfield_mobile_inst_")
+                    self._standalone_server = LanDropServer(t_dir, "dummy.zip", start_port=8899)
+                    port = self._standalone_server.start()
+                else:
+                    port = self._standalone_server.port
+
+            self.mobile_dlg = MobileInstallDialog(port, self.iface.mainWindow())
+            self.mobile_dlg.show()
+            self.mobile_dlg.raise_()
+            self.mobile_dlg.activateWindow()
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                "QField LAN Drop", f"打开助手安装对话框失败: {str(e)}", level=Qgis.Warning, duration=5
             )
 
     def _is_dialog_active(self) -> bool:

@@ -7,7 +7,9 @@ Provides thread-safe Qt signals for download monitoring and alias routing.
 import os
 import json
 import time
+import shutil
 import socket
+import zipfile
 import datetime
 import threading
 import urllib.parse
@@ -255,11 +257,41 @@ class LanDropServer:
         self.target_filepath = os.path.join(serve_dir, zip_filename)
         self.upload_dir = upload_dir or os.path.join(serve_dir, "_qfield_return")
         os.makedirs(self.upload_dir, exist_ok=True)
+
+        # Prepare mobile companion zip in serve_dir
+        self.mobile_zip_path = os.path.join(serve_dir, "mobile.zip")
+        self._prepare_mobile_zip()
+
         self.port = start_port
         self.httpd = None
         self.thread = None
         self.signals = DropServerSignals()
         self._is_running = False
+
+    def _prepare_mobile_zip(self):
+        """Pre-packages the mobile companion plugin into serve_dir/mobile.zip for offline download."""
+        try:
+            import zipfile
+            plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            mobile_src = os.path.join(plugin_root, "mobile")
+            if not os.path.exists(mobile_src):
+                mobile_src = os.path.join(os.path.dirname(plugin_root), "QFieldDrop-Mobile")
+
+            if os.path.exists(mobile_src):
+                with zipfile.ZipFile(self.mobile_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    for root, dirs, files in os.walk(mobile_src):
+                        for f in files:
+                            full = os.path.join(root, f)
+                            rel = os.path.relpath(full, mobile_src)
+                            # Put under root folder in zip (qfield_drop/...)
+                            arc = os.path.join("qfield_drop", rel)
+                            zf.write(full, arcname=arc)
+                # Also create plugin.zip alias
+                alias = os.path.join(self.serve_dir, "plugin.zip")
+                if not os.path.exists(alias):
+                    shutil.copyfile(self.mobile_zip_path, alias)
+        except Exception:
+            pass
 
     def start(self) -> int:
         parent_self = self
@@ -270,11 +302,12 @@ class LanDropServer:
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, directory=parent_self.serve_dir, **kwargs)
 
-            def _send_zip_headers(self, file_size):
+            def _send_zip_headers(self, file_size, download_name=None):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/zip")
-                safe_ascii_name = "project.zip"
-                encoded_utf8_name = urllib.parse.quote(filename)
+                effective_name = download_name or filename
+                safe_ascii_name = "download.zip" if not download_name else download_name
+                encoded_utf8_name = urllib.parse.quote(effective_name)
                 self.send_header(
                     "Content-Disposition",
                     f'attachment; filename="{safe_ascii_name}"; filename*=UTF-8\'\'{encoded_utf8_name}'
@@ -288,6 +321,11 @@ class LanDropServer:
             def do_HEAD(self):
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
                 valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
+                if req_path in ('mobile.zip', 'plugin.zip', 'qfield_drop.zip'):
+                    m_path = parent_self.mobile_zip_path
+                    if os.path.exists(m_path):
+                        self._send_zip_headers(os.path.getsize(m_path), download_name="qfield_drop.zip")
+                        return
                 if req_path in valid_paths:
                     if not os.path.exists(target_path):
                         self.send_error(404, "Project archive not found")
@@ -300,7 +338,19 @@ class LanDropServer:
                 client_ip = self.client_address[0]
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
 
-                # Allow explicit aliases only: empty, project.zip, latest.zip, or real filename
+                # Route 1: Mobile companion plugin download
+                if req_path in ('mobile.zip', 'plugin.zip', 'qfield_drop.zip'):
+                    m_path = parent_self.mobile_zip_path
+                    if not os.path.exists(m_path):
+                        self.send_error(404, "Mobile plugin archive not found")
+                        return
+                    file_size = os.path.getsize(m_path)
+                    self._send_zip_headers(file_size, download_name="qfield_drop.zip")
+                    with open(m_path, 'rb') as f:
+                        shutil.copyfileobj(f, self.wfile)
+                    return
+
+                # Route 2: Project payload download
                 valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
 
                 if req_path in valid_paths:

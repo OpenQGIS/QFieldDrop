@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-QField LAN Drop - Tab 1: QR Code & Deep Link Direct Scan
-Generates QField deep link (qfield://) and standard HTTP QR codes with IP switching.
+QField LAN Drop - Tab 1: QR Code & Deep Link Direct Scan (Simplified)
+Generates QField deep link (qfield://) QR code with progressive disclosure of advanced settings.
 Native QGIS Desktop UI style.
 """
 
@@ -35,96 +35,94 @@ class QrDropTab(QWidget):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        # 1. Network IP Selector GroupBox
-        net_group = QGroupBox("局域网 IP 设置")
-        net_layout = QHBoxLayout(net_group)
-        net_lbl = QLabel("本机直传 IP:")
-        net_layout.addWidget(net_lbl)
+        # 1. Main Centerpiece: Clean QR Code Card
+        qr_group = QGroupBox("手机扫码直接导入")
+        qr_layout = QVBoxLayout(qr_group)
+        qr_layout.setAlignment(ALIGN_CENTER)
+        qr_layout.setContentsMargins(12, 14, 12, 14)
 
+        self.qr_label = QLabel()
+        self.qr_label.setFixedSize(220, 220)
+        self.qr_label.setAlignment(ALIGN_CENTER)
+        # High contrast white background for camera scanning
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
+        qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
+
+        scan_tip = QLabel("手机自带相机或 QField 扫码，一秒调起工程导入")
+        scan_tip.setAlignment(ALIGN_CENTER)
+        scan_tip.setStyleSheet("font-weight: bold; font-size: 13px; margin-top: 6px;")
+        qr_layout.addWidget(scan_tip)
+
+        net_tip = QLabel("需确保手机与电脑已连接到同一 Wi-Fi 或手机热点")
+        net_tip.setAlignment(ALIGN_CENTER)
+        qr_layout.addWidget(net_tip)
+
+        layout.addWidget(qr_group)
+
+        # 2. Quick Action Bar
+        act_row = QHBoxLayout()
+        act_row.setAlignment(ALIGN_CENTER)
+
+        btn_copy_link = QPushButton("复制直达链接")
+        btn_copy_link.setIcon(get_icon("link"))
+        btn_copy_link.clicked.connect(self._copy_link_auto)
+        act_row.addWidget(btn_copy_link)
+
+        self.btn_toggle_adv = QPushButton("▼ 高级网络选项")
+        self.btn_toggle_adv.setCheckable(True)
+        self.btn_toggle_adv.setChecked(False)
+        self.btn_toggle_adv.toggled.connect(self._toggle_advanced)
+        act_row.addWidget(self.btn_toggle_adv)
+
+        layout.addLayout(act_row)
+
+        # 3. Progressive Disclosure: Advanced Settings Box (Hidden by default)
+        self.adv_group = QGroupBox("高级网络设置")
+        adv_layout = QVBoxLayout(self.adv_group)
+
+        # IP Selector Row
+        ip_row = QHBoxLayout()
+        ip_row.addWidget(QLabel("选择投送 IP:"))
         self.ip_combo = QComboBox()
         self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        lan_ips = NetworkHelper.get_all_lan_ips()
-        for item in lan_ips:
+        for item in NetworkHelper.get_all_lan_ips():
             self.ip_combo.addItem(item['label'], item['ip'])
-
         self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
-        net_layout.addWidget(self.ip_combo, 1)
+        ip_row.addWidget(self.ip_combo, 1)
 
         btn_firewall = QPushButton("防火墙放行命令")
         btn_firewall.setIcon(get_icon("shield"))
         btn_firewall.clicked.connect(self._copy_firewall_cmd)
-        net_layout.addWidget(btn_firewall)
+        ip_row.addWidget(btn_firewall)
+        adv_layout.addLayout(ip_row)
 
-        layout.addWidget(net_group)
-
-        # 2. QR Code GroupBox
-        qr_group = QGroupBox("手机扫码快速投送")
-        qr_layout = QVBoxLayout(qr_group)
-        qr_layout.setAlignment(ALIGN_CENTER)
-
-        # QR Code Display
-        self.qr_label = QLabel()
-        self.qr_label.setFixedSize(220, 220)
-        self.qr_label.setAlignment(ALIGN_CENTER)
-        # Note: QR code must be on white background for scanner contrast
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
-        qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
-
-        # Mode Selection Radio buttons
+        # Mode Selection
         mode_row = QHBoxLayout()
-        mode_row.setAlignment(ALIGN_CENTER)
         self.btn_group = QButtonGroup(self)
-
-        self.rb_deeplink = QRadioButton("QField 唤醒码 (系统相机直接打开)")
+        self.rb_deeplink = QRadioButton("QField 唤醒码 (qfield://)")
         self.rb_deeplink.setChecked(True)
-        self.rb_deeplink.setToolTip("使用 qfield:// 协议，手机相机扫码即可唤起 QField 导入工程")
-
-        self.rb_http = QRadioButton("标准下载码 (浏览器/通用下载)")
-        self.rb_http.setToolTip("标准 HTTP 地址，可用于手机浏览器扫码下载或手动输入")
-
+        self.rb_http = QRadioButton("标准 HTTP 下载码 (浏览器)")
         self.btn_group.addButton(self.rb_deeplink)
         self.btn_group.addButton(self.rb_http)
         self.rb_deeplink.toggled.connect(self._update_urls_and_qr)
-
         mode_row.addWidget(self.rb_deeplink)
-        mode_row.addSpacing(20)
         mode_row.addWidget(self.rb_http)
-        qr_layout.addLayout(mode_row)
+        mode_row.addStretch()
 
-        layout.addWidget(qr_group)
+        self.mdns_lbl = QLabel(f"通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+        mode_row.addWidget(self.mdns_lbl)
+        adv_layout.addLayout(mode_row)
 
-        # 3. Domain and Link Actions
-        action_group = QGroupBox("直达链接与域名")
-        action_layout = QVBoxLayout(action_group)
-
-        domain_row = QHBoxLayout()
-        self.mdns_lbl = QLabel(f"局域网通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
-        domain_row.addWidget(self.mdns_lbl)
-        domain_row.addStretch()
-
-        btn_copy_mdns = QPushButton("复制域名")
-        btn_copy_mdns.setIcon(get_icon("copy"))
-        btn_copy_mdns.clicked.connect(lambda: QApplication.clipboard().setText(f"http://qgis-drop.local:{self.port}/project.zip"))
-        domain_row.addWidget(btn_copy_mdns)
-        action_layout.addLayout(domain_row)
-
-        links_row = QHBoxLayout()
-        btn_copy_link = QPushButton("复制 HTTP 链接")
-        btn_copy_link.setIcon(get_icon("link"))
-        btn_copy_link.clicked.connect(self._copy_http_url)
-        links_row.addWidget(btn_copy_link)
-
-        btn_copy_deep = QPushButton("复制 QField 协议链接")
-        btn_copy_deep.setIcon(get_icon("link"))
-        btn_copy_deep.clicked.connect(self._copy_deeplink_url)
-        links_row.addWidget(btn_copy_deep)
-
-        action_layout.addLayout(links_row)
-        layout.addWidget(action_group)
+        self.adv_group.hide()
+        layout.addWidget(self.adv_group)
 
         layout.addStretch()
+
+    def _toggle_advanced(self, checked: bool):
+        self.adv_group.setVisible(checked)
+        self.btn_toggle_adv.setText("▲ 收起高级选项" if checked else "▼ 高级网络选项")
 
     def get_selected_ip(self) -> str:
         ip = self.ip_combo.currentData()
@@ -141,7 +139,7 @@ class QrDropTab(QWidget):
         self.port = port
         self.zip_filename = zip_filename
         if hasattr(self, 'mdns_lbl'):
-            self.mdns_lbl.setText(f"局域网通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+            self.mdns_lbl.setText(f"通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
         self._update_urls_and_qr()
 
     def _update_urls_and_qr(self):
@@ -157,20 +155,13 @@ class QrDropTab(QWidget):
         if pixmap:
             self.qr_label.setPixmap(pixmap)
 
-    def _copy_http_url(self):
-        QApplication.clipboard().setText(self.current_http_url)
+    def _copy_link_auto(self):
+        target = self.current_deeplink_url if self.rb_deeplink.isChecked() else self.current_http_url
+        QApplication.clipboard().setText(target)
         QMessageBox.information(
             self,
-            "复制成功",
-            f"HTTP 直链已复制到剪贴板：\n{self.current_http_url}\n\n可在手机浏览器中粘贴直接下载。"
-        )
-
-    def _copy_deeplink_url(self):
-        QApplication.clipboard().setText(self.current_deeplink_url)
-        QMessageBox.information(
-            self,
-            "复制成功",
-            f"QField 专属协议链接已复制：\n{self.current_deeplink_url}\n\n可通过微信/钉钉/备忘录发送至手机点击直达。"
+            "链接已复制",
+            f"直链已复制至剪贴板：\n{target}\n\n可在微信/备忘录发送至手机或在手机浏览器中打开。"
         )
 
     def _copy_firewall_cmd(self):

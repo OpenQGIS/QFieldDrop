@@ -227,3 +227,51 @@ class AdbPusher:
         except Exception as e:
             return False, str(e), ""
 
+    @classmethod
+    def install_plugin(
+        cls,
+        plugin_src_dir: str,
+        device_serial: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """
+        Installs QField companion plugin directly into QField's sandbox plugins folder.
+        """
+        if not cls.is_adb_available():
+            return False, "系统中未检测到 adb 命令，请确保已安装 Android Platform Tools。"
+
+        if not os.path.exists(plugin_src_dir):
+            return False, f"未找到插件源文件夹：{plugin_src_dir}"
+
+        base_cmd = ["adb"]
+        if device_serial:
+            base_cmd.extend(["-s", device_serial])
+
+        remote_target = "/sdcard/Android/data/ch.opengis.qfield/files/plugins/qfield_drop"
+
+        mkdir_cmd = base_cmd + ["shell", f"mkdir -p {shlex.quote(remote_target)}"]
+        try:
+            subprocess.run(
+                mkdir_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=10, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+        except Exception:
+            pass
+
+        push_cmd = base_cmd + ["push", f"{plugin_src_dir}/.", remote_target]
+        try:
+            res = subprocess.run(
+                push_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            if res.returncode == 0:
+                return True, f"成功将助手插件写入手机 QField！\n路径: {remote_target}\n在手机中启动 QField 即可看到顶部【回传电脑】图标。"
+            err = res.stderr.strip() or res.stdout.strip()
+            return False, f"写入手机失败: {err}"
+        except Exception as e:
+            return False, f"ADB 传输异常: {str(e)}"
+
+
