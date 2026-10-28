@@ -108,6 +108,7 @@ class QFieldSendDialog(QDialog):
         self.treemap: Optional[TreeMapWidget] = None
         self.ext_table: Optional[QTableWidget] = None
         self.drawer_warn_pill: Optional[QLabel] = None
+        self._cached_layers_dist: Optional[list] = None
 
         # Verify project is saved
         project = QgsProject.instance()
@@ -131,8 +132,8 @@ class QFieldSendDialog(QDialog):
         root_layout.setSpacing(8)
 
         # === 1. Left Primary Work Area ===
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
+        self.left_widget = QWidget()
+        left_layout = QVBoxLayout(self.left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
@@ -242,7 +243,7 @@ class QFieldSendDialog(QDialog):
         bottom_row.addWidget(self.button_box)
 
         left_layout.addLayout(bottom_row)
-        root_layout.addWidget(left_widget, 1)
+        root_layout.addWidget(self.left_widget, 1)
 
         # === 2. Right Side Collapsible Inspector Drawer ===
         self._init_drawer_ui(root_layout)
@@ -349,6 +350,8 @@ class QFieldSendDialog(QDialog):
             txt = self.project_name_edit.text().strip()
             if txt:
                 self.project_name = txt
+
+        self._cached_layers_dist = None
         project_name = self.project_name
 
         # Safe main thread metadata pre-check
@@ -487,13 +490,12 @@ class QFieldSendDialog(QDialog):
         if visible is None:
             visible = not self.drawer.isVisible()
 
-        self.drawer.setVisible(visible)
         ext_count = len(self.pkg_info.get('external_layers', []))
 
         if visible:
             self.drawer.setVisible(True)
             self.btn_toggle_drawer.setText("收起详细 ◀")
-            self._refresh_drawer_data()
+            self._refresh_drawer_data(force_reload=False)
             self.setMinimumWidth(940)
             self.resize(940, max(self.height(), 400))
         else:
@@ -502,17 +504,19 @@ class QFieldSendDialog(QDialog):
             self.btn_toggle_drawer.setText(btn_txt)
             self.setMinimumWidth(520)
             target_h = max(self.height(), 400)
-            self.setMaximumWidth(530)
-            self.adjustSize()
-            self.setMaximumWidth(16777215)
+            if hasattr(self, 'left_widget') and self.left_widget:
+                self.left_widget.setMaximumWidth(500)
             self.resize(520, target_h)
+            if hasattr(self, 'left_widget') and self.left_widget:
+                self.left_widget.setMaximumWidth(16777215)
 
-    def _refresh_drawer_data(self):
+    def _refresh_drawer_data(self, force_reload: bool = False):
         project = QgsProject.instance()
-        # 1. Update Treemap data
+        # 1. Update Treemap data with cache (Zero disk I/O on UI toggle)
         if self.treemap:
-            layers_dist = ProjectPackager.get_layers_size_distribution(project)
-            self.treemap.set_data(layers_dist)
+            if force_reload or self._cached_layers_dist is None:
+                self._cached_layers_dist = ProjectPackager.get_layers_size_distribution(project)
+            self.treemap.set_data(self._cached_layers_dist)
 
         # 2. Update External layers list and micro warning pill
         ext_layers = self.pkg_info.get('external_layers', [])
@@ -638,6 +642,8 @@ class QFieldSendDialog(QDialog):
             txt = self.project_name_edit.text().strip()
             if txt:
                 self.project_name = txt
+
+        self._cached_layers_dist = None
 
         if self.server:
             self.server.stop()
