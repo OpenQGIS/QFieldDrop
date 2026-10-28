@@ -379,15 +379,17 @@ class QFieldSendDialog(QDialog):
 
         ext_count = len(self.pkg_info.get('external_layers', []))
         if ext_count > 0:
-            self.btn_toggle_drawer.setText(f"外部图层 ({ext_count}) ◀")
+            self.btn_toggle_drawer.setText(f"外部图层 ({ext_count}) ▶")
             self.btn_toggle_drawer.setStyleSheet("QPushButton { font-weight: bold; color: #D97706; }")
-            self._refresh_drawer_data()
-            self._toggle_drawer(True)  # Auto expand drawer smoothly
+            self.btn_toggle_drawer.setToolTip(f"检测到 {ext_count} 个外部图层，点击向右展开查看体积树图与一键归档")
         else:
             self.btn_toggle_drawer.setText("存储分析 ▶")
             self.btn_toggle_drawer.setStyleSheet("")
-            self._refresh_drawer_data()
-            self._toggle_drawer(False)
+            self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图")
+
+        self._refresh_drawer_data()
+        # 默认始终保持紧凑折叠小窗口，仅在用户点击时才展开
+        self._toggle_drawer(False)
 
         # Start or update server
         is_first_init = (self.server is None)
@@ -469,13 +471,21 @@ class QFieldSendDialog(QDialog):
         ext_count = len(self.pkg_info.get('external_layers', []))
 
         if visible:
+            self.drawer.setVisible(True)
             self.btn_toggle_drawer.setText("收起分析 ◀" if ext_count == 0 else f"收起外部 ({ext_count}) ◀")
             self._refresh_drawer_data()
-            self.resize(max(self.width(), 950), self.height())
+            self.setMinimumWidth(940)
+            self.resize(940, max(self.height(), 400))
         else:
+            self.drawer.setVisible(False)
             btn_txt = f"外部图层 ({ext_count}) ▶" if ext_count > 0 else "存储分析 ▶"
             self.btn_toggle_drawer.setText(btn_txt)
-            self.resize(520, self.height())
+            self.setMinimumWidth(520)
+            target_h = max(self.height(), 400)
+            self.setMaximumWidth(530)
+            self.adjustSize()
+            self.setMaximumWidth(16777215)
+            self.resize(520, target_h)
 
     def _refresh_drawer_data(self):
         project = QgsProject.instance()
