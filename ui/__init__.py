@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-QField LAN Drop - UI Package
+QField LAN Drop - UI Module Exports
 """
 
 from .send_dialog import QFieldSendDialog
@@ -9,8 +9,6 @@ from .share_dialog import QFieldLanDropDialog
 from .tab_qr import QrDropTab
 from .tab_localsend import LocalSendTab
 from .tab_return import ReturnTab
-from .tab_advanced import AdvancedTab
-from .adb_dialog import AdbPushDialog
 from .external_layers_dialog import ExternalLayersDialog
 from .icon_helper import get_icon
 
@@ -21,8 +19,6 @@ __all__ = [
     "QrDropTab",
     "LocalSendTab",
     "ReturnTab",
-    "AdvancedTab",
-    "AdbPushDialog",
     "ExternalLayersDialog",
     "get_icon",
 ]

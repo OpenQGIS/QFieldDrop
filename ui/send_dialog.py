@@ -23,7 +23,6 @@ from ..core.mdns_server import MdnsResponder
 
 from .tab_qr import QrDropTab
 from .tab_localsend import LocalSendTab
-from .tab_advanced import AdvancedTab
 from .external_layers_dialog import ExternalLayersDialog
 from .icon_helper import get_icon
 
@@ -172,16 +171,6 @@ class QFieldSendDialog(QDialog):
         )
         self.tabs.addTab(self.tab_localsend, get_icon("radio"), "LocalSend 免扫码")
 
-        # Tab 2: Advanced Channels
-        project = QgsProject.instance()
-        project_dir = os.path.dirname(project.fileName()) if project.fileName() else ""
-        self.tab_advanced = AdvancedTab(
-            get_project_dir_cb=lambda: project_dir,
-            get_project_name_cb=lambda: self.pkg_info.get('project_name', 'qfield_project'),
-            port=self.port,
-            parent=self
-        )
-        self.tabs.addTab(self.tab_advanced, get_icon("settings"), "高阶传输通道")
 
         layout.addWidget(self.tabs, 1)
 
