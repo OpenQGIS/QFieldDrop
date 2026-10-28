@@ -17,7 +17,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
     QPushButton, QTabWidget, QProgressBar, QMessageBox, QDialogButtonBox,
     QStackedWidget, QWidget, QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QApplication
+    QApplication, QLineEdit
 )
 from qgis.PyQt.QtCore import QTimer, Qt, QThread, pyqtSignal
 
@@ -120,6 +120,7 @@ class QFieldSendDialog(QDialog):
             QTimer.singleShot(0, self.close)
             return
 
+        self.project_name = project.baseName() or "qfield_project"
         self.is_ready = True
         self._init_ui()
         self._start_packaging()
@@ -135,26 +136,43 @@ class QFieldSendDialog(QDialog):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
-        # 1. Project Info Native GroupBox
+        # 1. Project Info Native GroupBox (从左往右: 工程名输入框 -> 大小 -> 重新打包 -> 查看详细)
         info_group = QGroupBox("当前工程与打包信息")
         info_layout = QHBoxLayout(info_group)
-        info_layout.setContentsMargins(9, 8, 9, 8)
+        info_layout.setContentsMargins(8, 6, 8, 6)
+        info_layout.setSpacing(6)
 
-        self.meta_lbl = QLabel("正在分析工程依赖并准备打包...")
-        info_layout.addWidget(self.meta_lbl)
+        # 1. 工程名 (默认同步工程名，支持用户自定义输入)
+        lbl_pname = QLabel("工程名:")
+        info_layout.addWidget(lbl_pname)
+
+        self.project_name_edit = QLineEdit(self.project_name)
+        self.project_name_edit.setToolTip("默认同步当前工程名，可自定义输入导出名称 (回车或点击【重新打包】生效)")
+        self.project_name_edit.setMaximumWidth(125)
+        self.project_name_edit.returnPressed.connect(self._repackage)
+        info_layout.addWidget(self.project_name_edit)
+
+        # 2. 大小 (不显示文件数量)
+        self.size_lbl = QLabel("大小: 计算中...")
+        self.size_lbl.setStyleSheet("color: #475569;")
+        info_layout.addWidget(self.size_lbl)
+
         info_layout.addStretch()
 
-        self.btn_toggle_drawer = QPushButton("存储分析 ▶")
+        # 3. 重新打包
+        self.btn_refresh = QPushButton("重新打包")
+        self.btn_refresh.setIcon(get_icon("refresh"))
+        self.btn_refresh.setToolTip("按当前名称与工程修改重新打包")
+        self.btn_refresh.clicked.connect(self._repackage)
+        self.btn_refresh.setEnabled(False)
+        info_layout.addWidget(self.btn_refresh)
+
+        # 4. 查看详细 (原收起外部，向右展开树图与外部诊断)
+        self.btn_toggle_drawer = QPushButton("查看详细 ▶")
         self.btn_toggle_drawer.setIcon(get_icon("chart"))
         self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图与外部图层诊断")
         self.btn_toggle_drawer.clicked.connect(lambda: self._toggle_drawer(None))
         info_layout.addWidget(self.btn_toggle_drawer)
-
-        self.btn_refresh = QPushButton("重新打包")
-        self.btn_refresh.setIcon(get_icon("refresh"))
-        self.btn_refresh.clicked.connect(self._repackage)
-        self.btn_refresh.setEnabled(False)
-        info_layout.addWidget(self.btn_refresh)
 
         left_layout.addWidget(info_group)
 
@@ -325,7 +343,13 @@ class QFieldSendDialog(QDialog):
 
         project_path = project.fileName()
         project_dir = os.path.normpath(os.path.dirname(project_path))
-        project_name = project.baseName() or "qfield_project"
+
+        # Read custom project name from input edit if available
+        if hasattr(self, 'project_name_edit') and self.project_name_edit:
+            txt = self.project_name_edit.text().strip()
+            if txt:
+                self.project_name = txt
+        project_name = self.project_name
 
         # Safe main thread metadata pre-check
         external_layers = ProjectPackager.check_external_layers(project)
@@ -333,7 +357,8 @@ class QFieldSendDialog(QDialog):
         zip_filename = f"{project_name}.zip"
 
         self.btn_refresh.setEnabled(False)
-        self.meta_lbl.setText("正在打包工程中，请稍候...")
+        if hasattr(self, 'size_lbl') and self.size_lbl:
+            self.size_lbl.setText("大小: 计算中...")
         self.pack_status_lbl.setText("正在整理工程图层与依赖文件...")
         self.pack_progress.setRange(0, 0)
         self.pack_file_lbl.setText("正在扫描工程目录...")
@@ -366,24 +391,19 @@ class QFieldSendDialog(QDialog):
         self.pkg_info = pkg_info
         self.dist_dir = pkg_info['dist_dir']
 
-        # Update Top Info Bar
-        proj_name = self.pkg_info.get('project_name', '工程')
+        # Update Top Info Bar: 只显示 大小，不显示包含文件数
         size_bytes = self.pkg_info.get('size_bytes', 0)
         size_mb = size_bytes / (1024 * 1024)
-        file_count = self.pkg_info.get('file_count', 0)
-        self.meta_lbl.setText(
-            f"工程名: <b>{proj_name}</b> &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"压缩包大小: <b>{size_mb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"包含文件: <b>{file_count} 个</b>"
-        )
+        if hasattr(self, 'size_lbl') and self.size_lbl:
+            self.size_lbl.setText(f"大小: <b>{size_mb:.2f} MB</b>")
 
         ext_count = len(self.pkg_info.get('external_layers', []))
         if ext_count > 0:
-            self.btn_toggle_drawer.setText(f"外部图层 ({ext_count}) ▶")
+            self.btn_toggle_drawer.setText(f"查看详细 ({ext_count}) ▶")
             self.btn_toggle_drawer.setStyleSheet("QPushButton { font-weight: bold; color: #D97706; }")
             self.btn_toggle_drawer.setToolTip(f"检测到 {ext_count} 个外部图层，点击向右展开查看体积树图与一键归档")
         else:
-            self.btn_toggle_drawer.setText("存储分析 ▶")
+            self.btn_toggle_drawer.setText("查看详细 ▶")
             self.btn_toggle_drawer.setStyleSheet("")
             self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图")
 
@@ -472,13 +492,13 @@ class QFieldSendDialog(QDialog):
 
         if visible:
             self.drawer.setVisible(True)
-            self.btn_toggle_drawer.setText("收起分析 ◀" if ext_count == 0 else f"收起外部 ({ext_count}) ◀")
+            self.btn_toggle_drawer.setText("收起详细 ◀")
             self._refresh_drawer_data()
             self.setMinimumWidth(940)
             self.resize(940, max(self.height(), 400))
         else:
             self.drawer.setVisible(False)
-            btn_txt = f"外部图层 ({ext_count}) ▶" if ext_count > 0 else "存储分析 ▶"
+            btn_txt = f"查看详细 ({ext_count}) ▶" if ext_count > 0 else "查看详细 ▶"
             self.btn_toggle_drawer.setText(btn_txt)
             self.setMinimumWidth(520)
             target_h = max(self.height(), 400)
@@ -600,13 +620,9 @@ class QFieldSendDialog(QDialog):
         if hasattr(self, 'tab_localsend') and self.tab_localsend:
             self.tab_localsend.update_package(pkg_info['zip_path'], pkg_info['zip_filename'])
 
-        if hasattr(self, 'meta_lbl') and self.meta_lbl:
-            pname = self.pkg_info.get('project_name', '工程')
+        if hasattr(self, 'size_lbl') and self.size_lbl:
             smb = self.pkg_info.get('size_bytes', 0) / (1024 * 1024)
-            fcnt = self.pkg_info.get('file_count', 0)
-            self.meta_lbl.setText(
-                f"工程名: <b>{pname}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 压缩包大小: <b>{smb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; 包含文件: <b>{fcnt} 个</b>"
-            )
+            self.size_lbl.setText(f"大小: <b>{smb:.2f} MB</b>")
 
         if hasattr(self, 'btn_warn') and self.btn_warn:
             orig_cnt = pkg_info.get('original_external_count', len(layers_placeholder if 'layers_placeholder' in locals() else []))
@@ -618,6 +634,11 @@ class QFieldSendDialog(QDialog):
         self.status_box.setText("已完成外部图层临时自包含打包，分发载荷已就绪！")
 
     def _repackage(self):
+        if hasattr(self, 'project_name_edit') and self.project_name_edit:
+            txt = self.project_name_edit.text().strip()
+            if txt:
+                self.project_name = txt
+
         if self.server:
             self.server.stop()
             self.server = None
