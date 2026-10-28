@@ -49,6 +49,22 @@ class PushWorker(QThread):
             self.finished_signal.emit(success, msg)
 
 
+class ManualConnectWorker(QThread):
+    finished_signal = pyqtSignal(object, str, int)  # (device or None, ip, port)
+
+    def __init__(self, ip: str, port: int):
+        super().__init__()
+        self.ip = ip
+        self.port = port
+
+    def run(self):
+        try:
+            device = LocalSendDiscovery.fetch_device_info(self.ip, port=self.port, timeout=2.5)
+            self.finished_signal.emit(device, self.ip, self.port)
+        except Exception:
+            self.finished_signal.emit(None, self.ip, self.port)
+
+
 class LocalSendTab(QWidget):
     def __init__(self, get_local_ip_cb, zip_path: str, zip_filename: str, parent=None, auto_scan: bool = False):
         super().__init__(parent)
@@ -239,35 +255,37 @@ class LocalSendTab(QWidget):
 
         self.btn_manual_connect.setEnabled(False)
         self.btn_manual_connect.setText("连接中...")
-        QApplication.processEvents()
 
-        try:
-            device = LocalSendDiscovery.fetch_device_info(ip, port=port, timeout=2.5)
-            if device:
-                self.settings.setValue("last_phone_ip", ip)
-                self._on_device_found(device)
-                # Select the manually added device
-                for i in range(self.device_list.count()):
-                    item = self.device_list.item(i)
-                    if item.data(Qt.UserRole) == ip:
-                        self.device_list.setCurrentItem(item)
-                        break
-                self.status_lbl.setText(f"成功直连手机设备：{device.alias} ({device.device_model})")
-                QMessageBox.information(
-                    self, "连接成功",
-                    f"已成功识别目标设备：\n\n设备名: {device.alias}\n型号: {device.device_model}\nIP: {device.ip}:{device.port}\n\n已自动选中该设备，点击【推送到选中手机】即可开始直传！"
-                )
-            else:
-                QMessageBox.warning(
-                    self, "连接未响应",
-                    f"无法连接到目标设备 ({ip}:{port})。\n\n排查建议：\n"
-                    "1. 请确认手机已打开 LocalSend App 且处于前台（未锁屏）；\n"
-                    "2. 确认手机与电脑连接的是同一个 Wi-Fi 或手机热点；\n"
-                    "3. 检查手机端 LocalSend 界面首页显示的 IP 是否与输入一致。"
-                )
-        finally:
-            self.btn_manual_connect.setEnabled(True)
-            self.btn_manual_connect.setText("连接并添加")
+        self.connect_worker = ManualConnectWorker(ip, port)
+        self.connect_worker.finished_signal.connect(self._on_manual_connect_finished)
+        self.connect_worker.start()
+
+    def _on_manual_connect_finished(self, device: Optional[LocalSendDevice], ip: str, port: int):
+        self.btn_manual_connect.setEnabled(True)
+        self.btn_manual_connect.setText("连接并添加")
+
+        if device:
+            self.settings.setValue("last_phone_ip", ip)
+            self._on_device_found(device)
+            # Select the manually added device
+            for i in range(self.device_list.count()):
+                item = self.device_list.item(i)
+                if item.data(Qt.UserRole) == ip:
+                    self.device_list.setCurrentItem(item)
+                    break
+            self.status_lbl.setText(f"成功直连手机设备：{device.alias} ({device.device_model})")
+            QMessageBox.information(
+                self, "连接成功",
+                f"已成功识别目标设备：\n\n设备名: {device.alias}\n型号: {device.device_model}\nIP: {device.ip}:{device.port}\n\n已自动选中该设备，点击【推送到选中手机】即可开始直传！"
+            )
+        else:
+            QMessageBox.warning(
+                self, "连接未响应",
+                f"无法连接到目标设备 ({ip}:{port})。\n\n排查建议：\n"
+                "1. 请确认手机已打开 LocalSend App 且处于前台（未锁屏）；\n"
+                "2. 确认手机与电脑连接的是同一个 Wi-Fi 或手机热点；\n"
+                "3. 检查手机端 LocalSend 界面首页显示的 IP 是否与输入一致。"
+            )
 
     def _send_to_device(self):
         selected_items = self.device_list.selectedItems()
@@ -316,6 +334,6 @@ class LocalSendTab(QWidget):
             try:
                 self.push_worker.progress_signal.disconnect()
                 self.push_worker.finished_signal.disconnect()
-            except Exception:
+            except (TypeError, RuntimeError):
                 pass
             self.push_worker.wait(500)

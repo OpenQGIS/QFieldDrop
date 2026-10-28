@@ -1,12 +1,12 @@
 [general]
 name=QField LAN Drop
 qgisMinimumVersion=3.0
-qgisMaximumVersion=3.99
-description=Zero-config instant LAN/Hotspot direct transfer of QGIS projects to QField via QR code & Deep Link.
-version=1.0.1
+qgisMaximumVersion=4.99
+description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links.
+version=1.1.1
 author=OpenQGIS
 email=OpenQGIS@outlook.com
-about=Directly transfer QGIS projects to mobile QField over local Wi-Fi or mobile hotspot using QR code and qfield:// deep link. Zero cloud upload, no MTP cables, and zero external pip dependencies.
+about=Transfer QGIS projects directly to mobile QField over local Wi-Fi or mobile hotspot using QR codes and qfield:// deep links. Works without cloud uploads, cables, or external pip dependencies.
 homepage=https://github.com/OpenQGIS/QFieldDrop
 tracker=https://github.com/OpenQGIS/QFieldDrop/issues
 repository=https://github.com/OpenQGIS/QFieldDrop
@@ -17,10 +17,19 @@ deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
+  Version 1.1.1:
+  - 🚀 全异步防假死架构：将大工程数据 ZIP 压缩移至独立 QThread 后台工作线程，窗口即时弹出并提供文件实时进度条，彻底杜绝 QGIS 界面卡顿未响应。 / Fully non-blocking asynchronous packaging engine with real-time progress bar.
+  - ⚡ ADB 通信子线程化：将手机外业成果拉取与插件安装写入改由后台 Worker 执行，规避超时或网络拥堵造成的界面冻结。 / Moved ADB pull and install operations into background threads to eliminate UI blocking.
+  - 📦 成果解压与载入优化：现场成果接收面板引入异步解压工作线程，支持大体量外业包流畅解压；修复跨平台目录唤醒兼容性。 / Asynchronous extraction worker for inbound field survey return packages; improved cross-platform explorer compatibility.
+  - 🔍 LocalSend 直连探测优化：将局域网手动 IP 探测加入后台轻量线程，不可达 IP 探测零掉帧。 / Non-blocking background IP probing for manual LocalSend connection.
+
   Version 1.0.1:
-  - 🛠️ 工具栏双动作拆解：将出工投送与收工回传拆分为独立动作，收工回传实现秒级直开。 / Split toolbar into Outbound Dispatch and Inbound Return actions; return dialog opens in milliseconds without repackaging.
-  - 📱 手机助手安装器：新增 QField 伴侣插件安装对话框，支持扫码安装、URL唤醒、ADB静默写入与离线包导出。 / Added mobile companion installer dialog supporting QR install, deep link, ADB push, and offline ZIP.
-  - ⚡ LocalSend 协议支持：集成 LocalSend v2 局域网组播发现与一键免扫码直推。 / Integrated LocalSend v2 multicast discovery and one-click direct transfer.
-  - 📥 移动端回传优化：移动端回传页面支持多文件、照片与工程压缩包批量回传。 / Enhanced mobile upload page to support batch upload of projects, GPKG, and photos.
+  - 🛠️ 工具栏双动作拆解：将投送与回传拆分为独立动作，接收回传无需等待工程打包。 / Split toolbar into Outbound Dispatch and Inbound Return actions; return dialog opens directly without repackaging.
+  - 📱 手机助手安装器：新增 QField 伴侣插件安装对话框，支持扫码安装、URL唤醒、ADB写入与离线包导出。 / Added mobile companion installer dialog supporting QR install, deep link, ADB push, and offline ZIP.
+  - ⚡ LocalSend 协议支持：支持 LocalSend v2 局域网组播发现与免扫码推送。 / Supports LocalSend v2 multicast discovery and direct transfer without scanning QR codes.
+  - 📥 移动端回传优化：移动端回传页面支持多文件、照片与工程压缩包批量回传。 / Mobile upload page supports batch upload of projects, GPKG files, and photos.
+  - 🌐 12 种多语言国际化：支持中、英、西、德、法、葡、意、日、韩、俄、阿等 12 种语言并自动匹配。 / Added full 12-language i18n support (en, zh_CN, zh_TW, es, de, fr, pt, it, ja, ko, ru, ar) with automatic locale fallback.
+  - 🛡️ 安全合规强化：规范异常捕获逻辑，全面通过 QGIS 官方 Bandit B110 安全审核。 / Hardened exception handling across all modules to fully comply with QGIS official Bandit B110 security scanning.
+
   Version 1.0.0:
-  - ✨ 基础局域网直传：支持二维码直接唤醒 QField 导入工程，内置轻量 HTTP 流式分发服务。 / Initial release of zero-config LAN transfer with QR code QField deep link and embedded HTTP server.
+  - ✨ 基础局域网直传：支持通过二维码唤醒 QField 导入工程，内置轻量 HTTP 分发服务。 / Supports importing projects into QField via QR code deep links, with a built-in HTTP server.

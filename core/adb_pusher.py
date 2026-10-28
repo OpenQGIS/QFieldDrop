@@ -33,7 +33,7 @@ class AdbPusher:
             custom_path = settings.value("custom_adb_path", "")
             if custom_path and os.path.isfile(custom_path):
                 return custom_path
-        except Exception:
+        except (TypeError, RuntimeError, AttributeError):
             pass
 
         # Check system PATH
@@ -298,7 +298,7 @@ class AdbPusher:
                 mkdir_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 timeout=10, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
-        except Exception:
+        except (subprocess.SubprocessError, OSError, TimeoutError):
             pass
 
         push_cmd = base_cmd + ["push", f"{plugin_src_dir}/.", remote_target]

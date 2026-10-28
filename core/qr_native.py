@@ -114,9 +114,7 @@ def render_qr_to_qimage(
         # 2. Draw optional center logo badge
         if icon_path and os.path.exists(icon_path):
             painter.setRenderHint(QPainter.Antialiasing, True)
-            # Badge occupies ~24% of target_size (approx 5.7% area, well within ECC Q/H limits)
-            badge_size = max(26, int(round(target_size * 0.24)))
-            # Ensure odd/even alignment for crisp centering
+            badge_size = max(26, int(round(target_size * 0.22)))
             cx = target_size / 2.0
             cy = target_size / 2.0
             bx = cx - badge_size / 2.0
@@ -128,15 +126,18 @@ def render_qr_to_qimage(
             radius = max(3.0, badge_size * 0.16)
             painter.drawRoundedRect(QRectF(bx, by, badge_size, badge_size), radius, radius)
 
-            # Render SVG icon inside badge with neat inner padding
+            # Render SVG icon inside badge with neat inner padding & strict clipping
             try:
                 from qgis.PyQt.QtSvg import QSvgRenderer
                 renderer = QSvgRenderer(icon_path)
                 if renderer.isValid():
-                    pad = max(3.0, badge_size * 0.12)
+                    pad = max(2.5, badge_size * 0.10)
                     icon_rect = QRectF(bx + pad, by + pad, badge_size - 2 * pad, badge_size - 2 * pad)
+                    painter.save()
+                    painter.setClipRect(icon_rect)
                     renderer.render(painter, icon_rect)
-            except Exception:
+                    painter.restore()
+            except (ImportError, RuntimeError, AttributeError):
                 pass
     finally:
         painter.end()

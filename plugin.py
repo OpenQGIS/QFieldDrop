@@ -189,7 +189,7 @@ class QFieldDropPlugin:
             if getattr(self, '_standalone_server', None):
                 try:
                     self._standalone_server.stop()
-                except Exception:
+                except (OSError, RuntimeError, AttributeError):
                     pass
                 self._standalone_server = None
 
@@ -253,7 +253,7 @@ class QFieldDropPlugin:
                 if getattr(self, '_standalone_server', None):
                     try:
                         self._standalone_server.stop()
-                    except Exception:
+                    except (OSError, RuntimeError, AttributeError):
                         pass
                     self._standalone_server = None
 

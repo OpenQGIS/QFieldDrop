@@ -5,6 +5,7 @@ Provides thread-safe Qt signals for download monitoring and alias routing.
 """
 
 import os
+import re
 import json
 import time
 import shutil
@@ -61,7 +62,7 @@ class NetworkHelper:
             hostname = socket.gethostname()
             for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
                 ips.add(info[4][0])
-        except Exception:
+        except (socket.error, OSError):
             pass
         return ips
 
@@ -85,7 +86,7 @@ class NetworkHelper:
             s.close()
             if primary_ip and not primary_ip.startswith('127.') and not primary_ip.startswith('169.254.'):
                 ips.append(primary_ip)
-        except Exception:
+        except (socket.error, OSError):
             pass
 
         # 2. Enumerate host addresses via getaddrinfo
@@ -95,7 +96,7 @@ class NetworkHelper:
                 ip = info[4][0]
                 if not ip.startswith('127.') and not ip.startswith('169.254.') and ip not in ips:
                     ips.append(ip)
-        except Exception:
+        except (socket.error, OSError):
             pass
 
         if not ips:
@@ -316,13 +317,19 @@ class LanDropServer:
                 alias = os.path.join(self.serve_dir, "plugin.zip")
                 if not os.path.exists(alias):
                     shutil.copyfile(self.mobile_zip_path, alias)
-        except Exception:
+        except (shutil.Error, OSError):
             pass
+
+    def update_payload(self, serve_dir: str, zip_filename: str):
+        """Dynamically switch served archive without tearing down listening socket."""
+        self.serve_dir = serve_dir
+        self.zip_filename = zip_filename
+        self.target_filepath = os.path.join(serve_dir, zip_filename)
+        self.mobile_zip_path = os.path.join(serve_dir, "mobile.zip")
+        self._prepare_mobile_zip()
 
     def start(self) -> int:
         parent_self = self
-        target_path = self.target_filepath
-        filename = self.zip_filename
 
         class DropRequestHandler(SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs):
@@ -331,8 +338,12 @@ class LanDropServer:
             def _send_zip_headers(self, file_size, download_name=None):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/zip")
-                effective_name = download_name or filename
-                safe_ascii_name = "project.zip" if not download_name else download_name
+                effective_name = download_name or parent_self.zip_filename
+                if download_name:
+                    safe_ascii_name = download_name
+                else:
+                    safe_base = re.sub(r'[^\w\-\.]', '_', os.path.splitext(effective_name)[0]).strip('_')
+                    safe_ascii_name = f"{safe_base}.zip" if safe_base else "project.zip"
                 encoded_utf8_name = urllib.parse.quote(effective_name)
                 self.send_header(
                     "Content-Disposition",
@@ -356,17 +367,19 @@ class LanDropServer:
 
             def do_HEAD(self):
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
-                valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
+                cur_fname = parent_self.zip_filename
+                valid_paths = {'', 'project.zip', 'latest.zip', cur_fname, urllib.parse.unquote(cur_fname)}
                 if req_path in ('mobile.zip', 'plugin.zip', 'qfield_drop.zip'):
                     m_path = parent_self.mobile_zip_path
                     if os.path.exists(m_path):
                         self._send_zip_headers(os.path.getsize(m_path), download_name="qfield_drop.zip")
                         return
                 if req_path in valid_paths:
-                    if not os.path.exists(target_path):
+                    cur_target = parent_self.target_filepath
+                    if not os.path.exists(cur_target):
                         self.send_error(404, "Project archive not found")
                         return
-                    self._send_zip_headers(os.path.getsize(target_path))
+                    self._send_zip_headers(os.path.getsize(cur_target))
                 else:
                     self.send_error(404, "Not Found")
 
@@ -387,15 +400,17 @@ class LanDropServer:
                     return
 
                 # Route 2: Project payload download
-                valid_paths = {'', 'project.zip', 'latest.zip', filename, urllib.parse.unquote(filename)}
+                cur_fname = parent_self.zip_filename
+                valid_paths = {'', 'project.zip', 'latest.zip', cur_fname, urllib.parse.unquote(cur_fname)}
 
                 if req_path in valid_paths:
-                    if not os.path.exists(target_path):
+                    cur_target = parent_self.target_filepath
+                    if not os.path.exists(cur_target):
                         self.send_error(404, "Project archive not found")
                         return
 
                     parent_self.signals.client_connected.emit(client_ip)
-                    file_size = os.path.getsize(target_path)
+                    file_size = os.path.getsize(cur_target)
                     self._send_zip_headers(file_size)
 
                     # Stream file in 64KB chunks with throttled progress signals
@@ -404,7 +419,7 @@ class LanDropServer:
                     last_pct = -1
                     last_emit_time = 0.0
                     try:
-                        with open(target_path, 'rb') as f:
+                        with open(cur_target, 'rb') as f:
                             while True:
                                 chunk = f.read(chunk_size)
                                 if not chunk:
@@ -417,7 +432,7 @@ class LanDropServer:
                                     last_pct = pct
                                     last_emit_time = now
                                     parent_self.signals.transfer_progress.emit(client_ip, sent, file_size)
-                        parent_self.signals.transfer_completed.emit(client_ip, filename)
+                        parent_self.signals.transfer_completed.emit(client_ip, cur_fname)
                     except (ConnectionResetError, BrokenPipeError):
                         # Client disconnected prematurely
                         pass
@@ -481,7 +496,7 @@ class LanDropServer:
                         if written < content_length:
                             try:
                                 os.remove(dest_path)
-                            except Exception:
+                            except OSError:
                                 pass
                             self.send_error(400, "Incomplete upload stream")
                             return
@@ -498,7 +513,7 @@ class LanDropServer:
                         try:
                             if os.path.exists(dest_path):
                                 os.remove(dest_path)
-                        except Exception:
+                        except OSError:
                             pass
                         parent_self.signals.server_error.emit(f"接收文件异常: {str(e)}")
                         self.send_error(500, str(e))
@@ -542,7 +557,7 @@ class LanDropServer:
         try:
             if self.httpd:
                 self.httpd.serve_forever()
-        except Exception:
+        except (socket.error, OSError):
             pass
         finally:
             self._is_running = False
@@ -558,7 +573,7 @@ class LanDropServer:
                 try:
                     httpd.shutdown()
                     httpd.server_close()
-                except Exception:
+                except (socket.error, OSError):
                     pass
             threading.Thread(target=_shutdown, daemon=True).start()
 

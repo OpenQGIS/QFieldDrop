@@ -156,7 +156,8 @@ class QrDropTab(QWidget):
     def _update_urls_and_qr(self):
         ip = self.get_selected_ip()
         filename = self.zip_filename or "project.zip"
-        self.current_http_url = f"http://{ip}:{self.port}/{filename}"
+        encoded_filename = urllib.parse.quote(filename)
+        self.current_http_url = f"http://{ip}:{self.port}/{encoded_filename}"
 
         # Official QField Deep Link specification:
         # qfield://local?import={url}

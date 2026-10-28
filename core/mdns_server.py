@@ -40,7 +40,7 @@ class MdnsResponder:
         if self._sock:
             try:
                 self._sock.close()
-            except Exception:
+            except (socket.error, OSError):
                 pass
             self._sock = None
 
@@ -127,11 +127,11 @@ class MdnsResponder:
                     continue
                 except Exception:
                     continue
-        except Exception:
+        except (socket.error, OSError):
             pass
         finally:
             if self._sock:
                 try:
                     self._sock.close()
-                except Exception:
+                except (socket.error, OSError):
                     pass

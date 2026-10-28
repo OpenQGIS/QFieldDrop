@@ -241,7 +241,45 @@ class QFieldLanDropDialog(QDialog):
     def _show_external_layers(self):
         layers = self.pkg_info.get('external_layers', [])
         dlg = ExternalLayersDialog(layers, self)
-        dlg.exec_()
+        if dlg.exec_() == QDialog.Accepted and dlg.new_pkg_info:
+            if dlg.action_result == "temp_pack":
+                self._apply_temp_package(dlg.new_pkg_info)
+            elif dlg.action_result == "archived":
+                self._repackage()
+
+    def _apply_temp_package(self, pkg_info: dict):
+        """Hot-swap active distribution payload with temporary self-contained package."""
+        if self.dist_dir and os.path.exists(self.dist_dir) and self.dist_dir != pkg_info.get('dist_dir'):
+            shutil.rmtree(self.dist_dir, ignore_errors=True)
+
+        self.pkg_info = pkg_info
+        self.dist_dir = pkg_info['dist_dir']
+
+        if self.server:
+            self.server.update_payload(self.dist_dir, pkg_info['zip_filename'])
+
+        if hasattr(self, 'tab_qr') and self.tab_qr:
+            self.tab_qr.update_port_and_file(self.port, pkg_info['zip_filename'])
+        if hasattr(self, 'tab_localsend') and self.tab_localsend:
+            self.tab_localsend.update_package(pkg_info['zip_path'], pkg_info['zip_filename'])
+        if hasattr(self, 'tab_return') and self.tab_return:
+            self.tab_return.update_ip_and_port(self.port)
+
+        if hasattr(self, 'meta_lbl') and self.meta_lbl:
+            pname = self.pkg_info.get('project_name', '工程')
+            smb = self.pkg_info.get('size_bytes', 0) / (1024 * 1024)
+            fcnt = self.pkg_info.get('file_count', 0)
+            self.meta_lbl.setText(
+                f"工程名: <b>{pname}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 压缩包大小: <b>{smb:.2f} MB</b> &nbsp;&nbsp;|&nbsp;&nbsp; 包含文件: <b>{fcnt} 个</b>"
+            )
+
+        if hasattr(self, 'btn_warn') and self.btn_warn:
+            self.btn_warn.setText("外部图层已临时自包含打包")
+            self.btn_warn.setIcon(get_icon("success"))
+            self.btn_warn.setStyleSheet("QPushButton { color: #2e7d32; font-weight: bold; }")
+            self.btn_warn.setToolTip("当前投送包已在临时沙箱中合并外部图层，手机端加载不红框，本地工程未受改动")
+
+        self.status_box.setText("已完成外部图层临时自包含打包，分发载荷已就绪！")
 
     def _repackage(self):
         if self.server:
@@ -321,35 +359,35 @@ class QFieldLanDropDialog(QDialog):
         try:
             if hasattr(self, 'tab_localsend') and self.tab_localsend:
                 self.tab_localsend.stop()
-        except Exception:
+        except (RuntimeError, AttributeError):
             pass
 
         try:
             if hasattr(self, 'tab_return') and self.tab_return:
                 if hasattr(self.tab_return, 'pull_worker') and self.tab_return.pull_worker and self.tab_return.pull_worker.isRunning():
                     self.tab_return.pull_worker.terminate()
-        except Exception:
+        except (RuntimeError, AttributeError):
             pass
 
         try:
             if self.mdns:
                 self.mdns.stop()
                 self.mdns = None
-        except Exception:
+        except (RuntimeError, AttributeError, OSError):
             pass
 
         try:
             if self.server:
                 self.server.stop()
                 self.server = None
-        except Exception:
+        except (RuntimeError, AttributeError, OSError):
             pass
 
         try:
             if self.dist_dir and os.path.exists(self.dist_dir):
                 shutil.rmtree(self.dist_dir, ignore_errors=True)
                 self.dist_dir = None
-        except Exception:
+        except (shutil.Error, OSError):
             pass
 
     def closeEvent(self, event):

@@ -10,6 +10,7 @@ from .tab_qr import QrDropTab
 from .tab_localsend import LocalSendTab
 from .tab_return import ReturnTab
 from .external_layers_dialog import ExternalLayersDialog
+from .treemap_widget import TreeMapWidget
 from .icon_helper import get_icon
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "LocalSendTab",
     "ReturnTab",
     "ExternalLayersDialog",
+    "TreeMapWidget",
     "get_icon",
 ]

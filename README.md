@@ -35,6 +35,22 @@ QGIS 工具栏:  [ 📤 投送工程至 QField ]   [ 📥 接收 QField 成果 ]
 
 ---
 
+## 🧬 双线独立版本架构体系 (Dual-Track Independent Versioning)
+
+本项目确立并严格践行 **「桌面端与移动端双轨独立版本演进架构」**：
+
+| 维度对比 | 🖥️ 桌面端 QGIS 插件 (Track A) | 📱 移动端 QField 伴侣 (Track B) |
+| :--- | :--- | :--- |
+| **独立版本号** | **1.1.1** (当前最新) | **1.0.1** (当前最新) |
+| **元数据源** | ./metadata.txt | ./mobile/metadata.txt |
+| **宿主环境** | QGIS Desktop (PyQt5 / PyQt6) | QField Mobile (QML / QtQuick / JavaScript) |
+| **版本迭代节奏**| **敏捷高频**（异步防假死重构、局域网协议迭代） | **克制稳健**（现场外业稳定性优先，免除频繁重复安装） |
+| **分发包制品** | QFieldDrop_V-1.1.1.zip (官方纯净包) | QFieldDropMobile_V-1.0.1.zip (直装与沙盒包) |
+
+> 💡 **架构解耦原则**：桌面端的性能调优、跨版本垫片升级或多线程重构**严禁无谓抬升手机端版本号**；两端生命周期完全解耦，构建流水线（uild_clean_release.py）自动独立解析版本并打包。
+
+---
+
 ## 📂 多模块工程结构说明
 
 各模块职责清晰，单文件保持在 40~350 行之间，有效避免上下文溢出与代码膨胀。关于开发、推送、打包与 Releases 资产的完整四维归类，请详阅 [PROJECT_STRUCTURE.md](file:///c:/Users/tesla/AppData/Roaming/QGIS/QGIS3/profiles/ForTest/python/plugins/QFieldDrop/PROJECT_STRUCTURE.md)。

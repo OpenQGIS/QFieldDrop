@@ -8,6 +8,8 @@ Native QGIS Desktop UI style:
 """
 
 import os
+import sys
+import platform
 import shutil
 import zipfile
 import subprocess
@@ -21,7 +23,7 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox,
     QTabWidget
 )
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QThread
 
 from ..core.net_server import LanDropServer, NetworkHelper
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
@@ -29,6 +31,43 @@ from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+
+
+class AdbPullWorker(QThread):
+    finished_signal = pyqtSignal(bool, str, str, str)  # (success, msg, saved_path, dest_dir)
+
+    def __init__(self, project_name: str, dest_dir: str, serial: str):
+        super().__init__()
+        self.project_name = project_name
+        self.dest_dir = dest_dir
+        self.serial = serial
+
+    def run(self):
+        try:
+            success, msg, saved_path = AdbPusher.pull_project(
+                self.project_name, self.dest_dir, device_serial=self.serial
+            )
+            self.finished_signal.emit(success, msg, saved_path, self.dest_dir)
+        except Exception as e:
+            self.finished_signal.emit(False, str(e), "", self.dest_dir)
+
+
+class UnzipWorker(QThread):
+    finished_signal = pyqtSignal(bool, str, str, str)  # (success, msg, extract_dir, action_tag)
+
+    def __init__(self, zip_path: str, extract_dir: str, action_tag: str = ""):
+        super().__init__()
+        self.zip_path = zip_path
+        self.extract_dir = extract_dir
+        self.action_tag = action_tag
+
+    def run(self):
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+                zf.extractall(self.extract_dir)
+            self.finished_signal.emit(True, "", self.extract_dir, self.action_tag)
+        except Exception as e:
+            self.finished_signal.emit(False, str(e), self.extract_dir, self.action_tag)
 
 
 class QFieldReceiveDialog(QDialog):
@@ -312,15 +351,13 @@ class QFieldReceiveDialog(QDialog):
         os.makedirs(dest_dir, exist_ok=True)
 
         self.btn_pull.setEnabled(False)
-        self.btn_pull.setText("正在从手机拉取中...")
-        QApplication.processEvents()
+        self.btn_pull.setText("正在从手机拉取中 (后台运行)...")
 
-        project = QgsProject.instance()
-        proj_dir = os.path.dirname(project.fileName()) if project.fileName() else ""
-        success, msg, saved_path = AdbPusher.pull_project(
-            self.project_name, dest_dir, device_serial=serial
-        )
+        self.adb_worker = AdbPullWorker(self.project_name, dest_dir, serial)
+        self.adb_worker.finished_signal.connect(self._on_adb_pull_finished)
+        self.adb_worker.start()
 
+    def _on_adb_pull_finished(self, success: bool, msg: str, saved_path: str, dest_dir: str):
         self.btn_pull.setEnabled(True)
         self.btn_pull.setText("一键拉回手机外业成果 (ADB)")
 
@@ -423,23 +460,61 @@ class QFieldReceiveDialog(QDialog):
             QMessageBox.critical(self, "错误", f"成果文件已被移动或删除：\n{file_path}")
             return
 
-        # If it's a zip archive, ask whether to extract first
-        target_files = []
+        # If it's a zip archive, extract in background worker first
         if file_path.lower().endswith(".zip"):
             extract_dir = os.path.join(os.path.dirname(file_path), f"extracted_{os.path.splitext(rec['filename'])[0]}")
             if not os.path.exists(extract_dir):
-                try:
-                    with zipfile.ZipFile(file_path, 'r') as zf:
-                        zf.extractall(extract_dir)
-                except Exception as e:
-                    QMessageBox.warning(self, "解压失败", f"无法自动解压该成果包：\n{str(e)}")
-                    return
+                self.btn_load.setEnabled(False)
+                self.btn_load.setText("正在解压中...")
+                self.unzip_worker = UnzipWorker(file_path, extract_dir, action_tag="load")
+                self.unzip_worker.finished_signal.connect(self._on_unzip_finished)
+                self.unzip_worker.start()
+                return
             target_files = self._find_geodata_files(extract_dir)
         elif os.path.isdir(file_path):
             target_files = self._find_geodata_files(file_path)
         else:
             target_files = [file_path]
 
+        self._do_add_layers_to_qgis(target_files)
+
+    def _unzip_selected_file(self):
+        rec = self._get_selected_record()
+        if not rec:
+            QMessageBox.warning(self, "提示", "请先在上方列表中选中一项成果记录！")
+            return
+
+        file_path = rec['path']
+        if not file_path.lower().endswith(".zip"):
+            QMessageBox.information(self, "提示", "所选文件不是 ZIP 压缩包，无需解压。")
+            return
+
+        extract_dir = os.path.join(os.path.dirname(file_path), f"extracted_{os.path.splitext(rec['filename'])[0]}")
+        self.btn_unzip.setEnabled(False)
+        self.btn_unzip.setText("正在解压...")
+
+        self.unzip_worker = UnzipWorker(file_path, extract_dir, action_tag="open")
+        self.unzip_worker.finished_signal.connect(self._on_unzip_finished)
+        self.unzip_worker.start()
+
+    def _on_unzip_finished(self, success: bool, msg: str, extract_dir: str, action_tag: str):
+        self.btn_load.setEnabled(True)
+        self.btn_load.setText("载入到当前工程")
+        self.btn_unzip.setEnabled(True)
+        self.btn_unzip.setText("解压成果包")
+
+        if not success:
+            QMessageBox.critical(self, "解压错误", f"解压过程发生异常：\n{msg}")
+            return
+
+        if action_tag == "open":
+            QMessageBox.information(self, "解压成功", f"成果包已解压到：\n{extract_dir}")
+            self._open_path_in_explorer(extract_dir)
+        elif action_tag == "load":
+            target_files = self._find_geodata_files(extract_dir)
+            self._do_add_layers_to_qgis(target_files)
+
+    def _do_add_layers_to_qgis(self, target_files: List[str]):
         if not target_files:
             QMessageBox.information(self, "未发现图层", "在所选成果中未检索到支持的地理数据图层 (.gpkg, .shp, .tif 等)。")
             return
@@ -469,26 +544,6 @@ class QFieldReceiveDialog(QDialog):
         else:
             QMessageBox.warning(self, "载入失败", "所选文件无法被 QGIS 正常加载。")
 
-    def _unzip_selected_file(self):
-        rec = self._get_selected_record()
-        if not rec:
-            QMessageBox.warning(self, "提示", "请先在上方列表中选中一项成果记录！")
-            return
-
-        file_path = rec['path']
-        if not file_path.lower().endswith(".zip"):
-            QMessageBox.information(self, "提示", "所选文件不是 ZIP 压缩包，无需解压。")
-            return
-
-        extract_dir = os.path.join(os.path.dirname(file_path), f"extracted_{os.path.splitext(rec['filename'])[0]}")
-        try:
-            with zipfile.ZipFile(file_path, 'r') as zf:
-                zf.extractall(extract_dir)
-            QMessageBox.information(self, "解压成功", f"成果包已解压到：\n{extract_dir}")
-            self._open_path_in_explorer(extract_dir)
-        except Exception as e:
-            QMessageBox.critical(self, "解压错误", f"解压过程发生异常：\n{str(e)}")
-
     def _open_selected_file_dir(self):
         rec = self._get_selected_record()
         if not rec:
@@ -506,11 +561,11 @@ class QFieldReceiveDialog(QDialog):
         try:
             if os.name == 'nt':
                 os.startfile(path)
-            elif os.uname().sysname == 'Darwin':
+            elif sys.platform == 'darwin' or platform.system() == 'Darwin':
                 subprocess.Popen(['open', path])
             else:
                 subprocess.Popen(['xdg-open', path])
-        except Exception:
+        except (subprocess.SubprocessError, OSError):
             pass
 
     def _find_geodata_files(self, root_dir: str) -> List[str]:
@@ -541,7 +596,7 @@ class QFieldReceiveDialog(QDialog):
         if self.server:
             try:
                 self.server.stop()
-            except Exception:
+            except (RuntimeError, AttributeError, OSError):
                 pass
             self.server = None
 

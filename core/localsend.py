@@ -48,7 +48,7 @@ def _get_local_ip_set():
         hostname = socket.gethostname()
         for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
             ips.add(info[4][0])
-    except Exception:
+    except (socket.error, OSError):
         pass
     return ips
 
@@ -145,7 +145,7 @@ class LocalSendDiscovery:
                             fingerprint=fp,
                             https=(proto == "https")
                         )
-            except Exception:
+            except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
                 pass
 
             # 2. Legacy fallback endpoint
@@ -183,13 +183,13 @@ class LocalSendDiscovery:
         if self._executor:
             try:
                 self._executor.shutdown(wait=False, cancel_futures=True)
-            except Exception:
+            except (RuntimeError, OSError):
                 pass
             self._executor = None
         if self._udp_sock:
             try:
                 self._udp_sock.close()
-            except Exception:
+            except (socket.error, OSError):
                 pass
             self._udp_sock = None
 
@@ -225,14 +225,14 @@ class LocalSendDiscovery:
             except Exception:
                 try:
                     sock.bind(('', 0))
-                except Exception:
+                except (socket.error, OSError):
                     pass
 
             # Configure Multicast Membership and Interface
             if self.local_ip and not self.local_ip.startswith("127."):
                 try:
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
-                except Exception:
+                except (socket.error, OSError):
                     pass
                 try:
                     mreq = struct.pack("4s4s", socket.inet_aton(MULTICAST_GROUP), socket.inet_aton(self.local_ip))
@@ -241,7 +241,7 @@ class LocalSendDiscovery:
                     try:
                         mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
                         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-                    except Exception:
+                    except (socket.error, OSError):
                         pass
 
             query_payload = json.dumps({
@@ -260,7 +260,7 @@ class LocalSendDiscovery:
             try:
                 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
                 sock.sendto(query_payload, (MULTICAST_GROUP, LOCALSEND_PORT))
-            except Exception:
+            except (socket.error, OSError):
                 pass
 
             local_ips = _get_local_ip_set()
@@ -277,7 +277,7 @@ class LocalSendDiscovery:
                         if parts[2] != "1":
                             sock.sendto(query_payload, (f"{parts[0]}.{parts[1]}.1.255", LOCALSEND_PORT))
                         sock.sendto(query_payload, (f"{parts[0]}.{parts[1]}.15.255", LOCALSEND_PORT))
-                except Exception:
+                except (socket.error, OSError):
                     pass
 
             # Listen for responses for up to ~3.0 seconds
@@ -319,14 +319,14 @@ class LocalSendDiscovery:
                     if not self._running:
                         break
                     continue
-        except Exception:
+        except (socket.error, OSError):
             pass
         finally:
             self._udp_sock = None
             if sock:
                 try:
                     sock.close()
-                except Exception:
+                except (socket.error, OSError):
                     pass
 
     def _scan_subnet(self):
@@ -387,7 +387,7 @@ class LocalSendDiscovery:
             if self._executor:
                 try:
                     self._executor.shutdown(wait=False, cancel_futures=True)
-                except Exception:
+                except (RuntimeError, OSError):
                     pass
                 self._executor = None
 

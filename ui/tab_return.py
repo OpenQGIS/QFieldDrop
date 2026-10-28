@@ -21,13 +21,32 @@ from qgis.PyQt.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QApplication, QComboBox, QFileDialog
 )
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QThread
 
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+
+
+class AdbPullWorker(QThread):
+    finished_signal = pyqtSignal(bool, str, str, str)  # (success, msg, saved_path, dest_dir)
+
+    def __init__(self, project_name: str, dest_dir: str, serial: str):
+        super().__init__()
+        self.project_name = project_name
+        self.dest_dir = dest_dir
+        self.serial = serial
+
+    def run(self):
+        try:
+            success, msg, saved_path = AdbPusher.pull_project(
+                self.project_name, self.dest_dir, device_serial=self.serial
+            )
+            self.finished_signal.emit(success, msg, saved_path, self.dest_dir)
+        except Exception as e:
+            self.finished_signal.emit(False, str(e), "", self.dest_dir)
 
 
 class ReturnTab(QWidget):
@@ -207,13 +226,13 @@ class ReturnTab(QWidget):
         os.makedirs(dest_dir, exist_ok=True)
 
         self.btn_pull.setEnabled(False)
-        self.btn_pull.setText("正在从手机拉取中...")
-        QApplication.processEvents()
+        self.btn_pull.setText("正在从手机拉取中 (后台运行)...")
 
-        success, msg, saved_path = AdbPusher.pull_project(
-            self.project_name, dest_dir, device_serial=serial
-        )
+        self.adb_worker = AdbPullWorker(self.project_name, dest_dir, serial)
+        self.adb_worker.finished_signal.connect(self._on_adb_pull_finished)
+        self.adb_worker.start()
 
+    def _on_adb_pull_finished(self, success: bool, msg: str, saved_path: str, dest_dir: str):
         self.btn_pull.setEnabled(True)
         self.btn_pull.setText("一键拉回手机外业成果 (ADB)")
 
@@ -334,7 +353,7 @@ class ReturnTab(QWidget):
                         'source': '历史归档',
                         'path': fpath
                     })
-                except Exception:
+                except (OSError, ValueError):
                     pass
 
     def _open_return_root_folder(self):
@@ -392,5 +411,5 @@ class ReturnTab(QWidget):
                     os.startfile(path)
                 elif os.name == 'posix':
                     subprocess.run(['open', path])
-            except Exception:
+            except (subprocess.SubprocessError, OSError):
                 pass
