@@ -21,8 +21,10 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox,
-    QTabWidget
+    QTabWidget, QMenu, QAction
 )
+from qgis.PyQt.QtGui import QKeySequence
+from qgis.PyQt.QtWidgets import QShortcut
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QThread
 
 from ..core.net_server import LanDropServer, NetworkHelper
@@ -196,15 +198,10 @@ class QFieldReceiveDialog(QDialog):
 
         # Tab 2: Android ADB Pull
         tab_adb = QWidget()
+        tab_adb.setToolTip("通过 USB 或无线调试连接的 Android 手机，免打开网页，直接穿透系统沙盒将 QField 最新工程与照片拉回电脑")
         adb_layout = QVBoxLayout(tab_adb)
         adb_layout.setContentsMargins(12, 10, 12, 10)
         adb_layout.setSpacing(8)
-
-        adb_desc = QLabel(
-            "通过 USB 或无线调试连接的 Android 手机，免打开网页，直接穿透系统沙盒将 QField 最新工程与照片拉回电脑："
-        )
-        adb_desc.setWordWrap(True)
-        adb_layout.addWidget(adb_desc)
 
         dev_row = QHBoxLayout()
         self.dev_combo = QComboBox()
@@ -246,6 +243,9 @@ class QFieldReceiveDialog(QDialog):
         stretch_mode = QHeaderView.Stretch if hasattr(QHeaderView, 'Stretch') else QHeaderView.ResizeMode.Stretch
         self.table.horizontalHeader().setSectionResizeMode(1, stretch_mode)
         self.table.setFixedHeight(140)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
+        QShortcut(QKeySequence.Delete, self.table, self._delete_selected_record)
         rec_layout.addWidget(self.table)
 
         tbl_btn_row = QHBoxLayout()
@@ -266,6 +266,12 @@ class QFieldReceiveDialog(QDialog):
         btn_unzip_selected.setIcon(get_icon("archive"))
         btn_unzip_selected.clicked.connect(self._unzip_selected_file)
         tbl_btn_row.addWidget(btn_unzip_selected)
+
+        btn_delete_selected = QPushButton("删除归档")
+        btn_delete_selected.setIcon(get_icon("trash") if get_icon("trash") else get_icon("alert-triangle"))
+        btn_delete_selected.setToolTip("从本地磁盘彻底删除此成果归档 (Del)")
+        btn_delete_selected.clicked.connect(self._delete_selected_record)
+        tbl_btn_row.addWidget(btn_delete_selected)
 
         tbl_btn_row.addStretch()
 
@@ -576,6 +582,70 @@ class QFieldReceiveDialog(QDialog):
                 if f.lower().endswith(geo_exts):
                     found.append(os.path.join(root, f))
         return found
+
+    def _show_context_menu(self, pos):
+        item = self.table.itemAt(pos)
+        if not item:
+            return
+        row = item.row()
+        self.table.selectRow(row)
+        rec = self._get_selected_record()
+        if not rec:
+            return
+
+        menu = QMenu(self)
+        act_load = menu.addAction(get_icon("add"), "载入至当前工程 (上图比对)")
+        act_open = menu.addAction(get_icon("folder"), "在资源管理器中定位")
+        act_unzip = menu.addAction(get_icon("archive"), "解压成果包")
+        menu.addSeparator()
+        act_del = menu.addAction(get_icon("trash") or get_icon("alert-triangle"), "删除此归档 (Del)")
+
+        action = menu.exec_(self.table.viewport().mapToGlobal(pos))
+        if action == act_load:
+            self._load_selected_into_qgis()
+        elif action == act_open:
+            self._open_selected_file_dir()
+        elif action == act_unzip:
+            self._unzip_selected_file()
+        elif action == act_del:
+            self._delete_selected_record()
+
+    def _delete_selected_record(self):
+        rec = self._get_selected_record()
+        if not rec:
+            return
+
+        fname = rec.get('filename', '')
+        fpath = rec.get('path', '')
+
+        reply = QMessageBox.question(
+            self,
+            "确认删除归档",
+            f"确定要永久删除以下成果归档吗？\n\n"
+            f"📄 文件名: {fname}\n"
+            f"📁 路径: {fpath}\n\n"
+            f"⚠️ 警告：该操作将直接从本地磁盘中彻底物理删除此成果，无法恢复！",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+            elif os.path.isdir(fpath):
+                shutil.rmtree(fpath)
+
+            row = self.table.currentRow()
+            if 0 <= row < self.table.rowCount():
+                self.table.removeRow(row)
+            if rec in self.received_records:
+                self.received_records.remove(rec)
+
+            self.status_box.setText(f"已成功删除外业归档：{fname}")
+        except Exception as e:
+            QMessageBox.critical(self, "删除失败", f"删除归档时发生错误：\n{str(e)}")
 
     def _get_path_size(self, path: str) -> int:
         if os.path.isfile(path):

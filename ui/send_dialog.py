@@ -16,7 +16,8 @@ from qgis.core import QgsProject
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
     QPushButton, QTabWidget, QProgressBar, QMessageBox, QDialogButtonBox,
-    QStackedWidget, QWidget
+    QStackedWidget, QWidget, QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
+    QApplication
 )
 from qgis.PyQt.QtCore import QTimer, Qt, QThread, pyqtSignal
 
@@ -26,7 +27,7 @@ from ..core.mdns_server import MdnsResponder
 
 from .tab_qr import QrDropTab
 from .tab_localsend import LocalSendTab
-from .external_layers_dialog import ExternalLayersDialog
+from .treemap_widget import TreeMapWidget, format_size
 from .icon_helper import get_icon
 
 
@@ -103,6 +104,10 @@ class QFieldSendDialog(QDialog):
         self.pkg_worker: Optional[PackageWorker] = None
         self.tab_qr: Optional[QrDropTab] = None
         self.tab_localsend: Optional[LocalSendTab] = None
+        self.drawer: Optional[QFrame] = None
+        self.treemap: Optional[TreeMapWidget] = None
+        self.ext_table: Optional[QTableWidget] = None
+        self.drawer_warn_pill: Optional[QLabel] = None
 
         # Verify project is saved
         project = QgsProject.instance()
@@ -120,9 +125,15 @@ class QFieldSendDialog(QDialog):
         self._start_packaging()
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(9, 9, 9, 9)
-        layout.setSpacing(8)
+        root_layout = QHBoxLayout(self)
+        root_layout.setContentsMargins(8, 8, 8, 8)
+        root_layout.setSpacing(8)
+
+        # === 1. Left Primary Work Area ===
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(8)
 
         # 1. Project Info Native GroupBox
         info_group = QGroupBox("当前工程与打包信息")
@@ -133,12 +144,11 @@ class QFieldSendDialog(QDialog):
         info_layout.addWidget(self.meta_lbl)
         info_layout.addStretch()
 
-        self.btn_warn = QPushButton("外部图层")
-        self.btn_warn.setIcon(get_icon("alert-triangle"))
-        self.btn_warn.setToolTip("查看位于工程目录外的图层")
-        self.btn_warn.clicked.connect(self._show_external_layers)
-        self.btn_warn.setVisible(False)
-        info_layout.addWidget(self.btn_warn)
+        self.btn_toggle_drawer = QPushButton("存储分析 ▶")
+        self.btn_toggle_drawer.setIcon(get_icon("chart"))
+        self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图与外部图层诊断")
+        self.btn_toggle_drawer.clicked.connect(lambda: self._toggle_drawer(None))
+        info_layout.addWidget(self.btn_toggle_drawer)
 
         self.btn_refresh = QPushButton("重新打包")
         self.btn_refresh.setIcon(get_icon("refresh"))
@@ -146,7 +156,7 @@ class QFieldSendDialog(QDialog):
         self.btn_refresh.setEnabled(False)
         info_layout.addWidget(self.btn_refresh)
 
-        layout.addWidget(info_group)
+        left_layout.addWidget(info_group)
 
         # 2. Central Stacked Widget: Page 0 = Packaging Progress, Page 1 = Outbound Tabs
         self.stack = QStackedWidget()
@@ -188,7 +198,7 @@ class QFieldSendDialog(QDialog):
         tabs_layout.addWidget(self.tabs)
         self.stack.addWidget(self.tabs_page)
 
-        layout.addWidget(self.stack, 1)
+        left_layout.addWidget(self.stack, 1)
 
         # 3. Global Download Progress Bar (hidden by default)
         self.progress_bar = QProgressBar()
@@ -196,7 +206,7 @@ class QFieldSendDialog(QDialog):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.hide()
-        layout.addWidget(self.progress_bar)
+        left_layout.addWidget(self.progress_bar)
 
         # 4. Bottom Native Bar: Status on Left + QDialogButtonBox on Right
         bottom_row = QHBoxLayout()
@@ -213,7 +223,97 @@ class QFieldSendDialog(QDialog):
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
 
-        layout.addLayout(bottom_row)
+        left_layout.addLayout(bottom_row)
+        root_layout.addWidget(left_widget, 1)
+
+        # === 2. Right Side Collapsible Inspector Drawer ===
+        self._init_drawer_ui(root_layout)
+
+    def _init_drawer_ui(self, parent_layout: QHBoxLayout):
+        self.drawer = QFrame()
+        self.drawer.setFixedWidth(420)
+        self.drawer.setStyleSheet(
+            "QFrame#inspectorDrawer { border-left: 1px solid palette(mid); background: palette(window); }"
+        )
+        self.drawer.setObjectName("inspectorDrawer")
+        drawer_layout = QVBoxLayout(self.drawer)
+        drawer_layout.setContentsMargins(8, 2, 2, 2)
+        drawer_layout.setSpacing(6)
+
+        # 1. Header
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(2, 2, 2, 2)
+
+        lbl_title = QLabel("<b>📊 图层存储分析</b>")
+        header_row.addWidget(lbl_title)
+
+        self.drawer_warn_pill = QLabel()
+        self.drawer_warn_pill.setStyleSheet("color: #D97706; font-size: 11px;")
+        self.drawer_warn_pill.setVisible(False)
+        header_row.addWidget(self.drawer_warn_pill)
+        header_row.addStretch()
+
+        btn_close_drawer = QPushButton("✕")
+        btn_close_drawer.setFixedSize(22, 22)
+        btn_close_drawer.setToolTip("收起侧边栏")
+        btn_close_drawer.setStyleSheet(
+            "QPushButton { border: none; font-size: 13px; color: #64748B; }"
+            "QPushButton:hover { color: #0F172A; font-weight: bold; }"
+        )
+        btn_close_drawer.clicked.connect(lambda: self._toggle_drawer(False))
+        header_row.addWidget(btn_close_drawer)
+
+        drawer_layout.addLayout(header_row)
+
+        # 2. Tabs: Treemap vs Details Table
+        self.drawer_tabs = QTabWidget()
+
+        # Tab 0: Treemap
+        self.treemap = TreeMapWidget(self)
+        self.drawer_tabs.addTab(self.treemap, get_icon("chart"), "体积树图")
+
+        # Tab 1: External Layers Table
+        ext_widget = QWidget()
+        ext_layout = QVBoxLayout(ext_widget)
+        ext_layout.setContentsMargins(4, 4, 4, 4)
+
+        self.ext_table = QTableWidget(0, 3)
+        self.ext_table.setHorizontalHeaderLabels(["图层名称", "大小", "磁盘路径"])
+        self.ext_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.ext_table.setAlternatingRowColors(True)
+        stretch_mode = QHeaderView.Stretch if hasattr(QHeaderView, 'Stretch') else QHeaderView.ResizeMode.Stretch
+        self.ext_table.horizontalHeader().setSectionResizeMode(2, stretch_mode)
+        ext_layout.addWidget(self.ext_table)
+        self.drawer_tabs.addTab(ext_widget, get_icon("list"), "外部清单 (0)")
+
+        drawer_layout.addWidget(self.drawer_tabs, 1)
+
+        # 3. Legend / Guidance
+        legend_lbl = QLabel(
+            "<small style='color: #64748B;'><font color='#F59E0B'>● 橙点</font>工程外 ｜ 悬停色块查看详情</small>"
+        )
+        drawer_layout.addWidget(legend_lbl)
+
+        # 4. Actions Row inside drawer
+        act_row = QHBoxLayout()
+        act_row.setSpacing(6)
+
+        self.btn_drawer_archive = QPushButton("📁 一键归档")
+        self.btn_drawer_archive.setIcon(get_icon("folder"))
+        self.btn_drawer_archive.setToolTip("将外部图层物理复制到本工程 data/ 目录并自动更新相对路径")
+        self.btn_drawer_archive.clicked.connect(self._on_drawer_archive)
+        act_row.addWidget(self.btn_drawer_archive)
+
+        self.btn_drawer_temp = QPushButton("⚡ 临时沙箱打包")
+        self.btn_drawer_temp.setIcon(get_icon("send"))
+        self.btn_drawer_temp.setToolTip("在后台临时沙箱中自动收集外部图层并打包，不改动电脑本地工程")
+        self.btn_drawer_temp.clicked.connect(self._on_drawer_temp_pack)
+        act_row.addWidget(self.btn_drawer_temp)
+
+        drawer_layout.addLayout(act_row)
+
+        self.drawer.setVisible(False)
+        parent_layout.addWidget(self.drawer)
 
     def _start_packaging(self):
         project = QgsProject.instance()
@@ -278,8 +378,16 @@ class QFieldSendDialog(QDialog):
         )
 
         ext_count = len(self.pkg_info.get('external_layers', []))
-        self.btn_warn.setText(f"{ext_count} 个外部图层")
-        self.btn_warn.setVisible(ext_count > 0)
+        if ext_count > 0:
+            self.btn_toggle_drawer.setText(f"外部图层 ({ext_count}) ◀")
+            self.btn_toggle_drawer.setStyleSheet("QPushButton { font-weight: bold; color: #D97706; }")
+            self._refresh_drawer_data()
+            self._toggle_drawer(True)  # Auto expand drawer smoothly
+        else:
+            self.btn_toggle_drawer.setText("存储分析 ▶")
+            self.btn_toggle_drawer.setStyleSheet("")
+            self._refresh_drawer_data()
+            self._toggle_drawer(False)
 
         # Start or update server
         is_first_init = (self.server is None)
@@ -351,14 +459,120 @@ class QFieldSendDialog(QDialog):
         if self.mdns:
             self.mdns.update_ip(ip)
 
-    def _show_external_layers(self):
-        layers = self.pkg_info.get('external_layers', [])
-        dlg = ExternalLayersDialog(layers, self)
-        if dlg.exec_() == QDialog.Accepted and dlg.new_pkg_info:
-            if dlg.action_result == "temp_pack":
-                self._apply_temp_package(dlg.new_pkg_info)
-            elif dlg.action_result == "archived":
-                self._repackage()
+    def _toggle_drawer(self, visible: Optional[bool] = None):
+        if not self.drawer:
+            return
+        if visible is None:
+            visible = not self.drawer.isVisible()
+
+        self.drawer.setVisible(visible)
+        ext_count = len(self.pkg_info.get('external_layers', []))
+
+        if visible:
+            self.btn_toggle_drawer.setText("收起分析 ◀" if ext_count == 0 else f"收起外部 ({ext_count}) ◀")
+            self._refresh_drawer_data()
+            self.resize(max(self.width(), 950), self.height())
+        else:
+            btn_txt = f"外部图层 ({ext_count}) ▶" if ext_count > 0 else "存储分析 ▶"
+            self.btn_toggle_drawer.setText(btn_txt)
+            self.resize(520, self.height())
+
+    def _refresh_drawer_data(self):
+        project = QgsProject.instance()
+        # 1. Update Treemap data
+        if self.treemap:
+            layers_dist = ProjectPackager.get_layers_size_distribution(project)
+            self.treemap.set_data(layers_dist)
+
+        # 2. Update External layers list and micro warning pill
+        ext_layers = self.pkg_info.get('external_layers', [])
+        ext_count = len(ext_layers)
+
+        if self.drawer_warn_pill:
+            if ext_count > 0:
+                self.drawer_warn_pill.setText(f"⚠️ {ext_count} 个外部图层")
+                self.drawer_warn_pill.setToolTip("数据源位于工程目录之外，手机端可能无法加载。推荐点击下方按钮一键处理。")
+                self.drawer_warn_pill.setVisible(True)
+            else:
+                self.drawer_warn_pill.setVisible(False)
+
+        if self.ext_table:
+            self.ext_table.setRowCount(ext_count)
+            for row, item in enumerate(ext_layers):
+                self.ext_table.setItem(row, 0, QTableWidgetItem(item.get('name', '')))
+                sz = item.get('size', 0)
+                self.ext_table.setItem(row, 1, QTableWidgetItem(format_size(sz)))
+                self.ext_table.setItem(row, 2, QTableWidgetItem(item.get('path', '')))
+
+        if hasattr(self, 'drawer_tabs') and self.drawer_tabs:
+            self.drawer_tabs.setTabText(1, f"外部清单 ({ext_count})")
+
+    def _on_drawer_archive(self):
+        project = QgsProject.instance()
+        ext_layers = self.pkg_info.get('external_layers', [])
+        if not ext_layers:
+            QMessageBox.information(self, "提示", "当前工程所有图层均已位于工程目录内，无需归档。")
+            return
+
+        ret = QMessageBox.question(
+            self,
+            "确认归档到工程",
+            f"检测到 {len(ext_layers)} 个外部图层。\n\n"
+            "该操作将自动执行：\n"
+            "1. 在工程目录下创建 'data' 文件夹；\n"
+            "2. 将外部文件物理复制至该文件夹；\n"
+            "3. 将工程图层路径更新为相对路径并保存。\n\n"
+            "是否立即执行归档？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        if ret != QMessageBox.Yes:
+            return
+
+        self.btn_drawer_archive.setEnabled(False)
+        self.btn_drawer_archive.setText("归档中...")
+        QApplication.processEvents()
+
+        try:
+            ProjectPackager.archive_external_layers_to_project(project)
+            QMessageBox.information(
+                self,
+                "归档成功",
+                "外部图层已成功整理并归档到工程的 data/ 目录下！\n工程已自动转为绿色便携工程，即将重新打包。"
+            )
+            self._repackage()
+        except Exception as e:
+            QMessageBox.critical(self, "归档失败", f"归档外部图层时出错：\n{str(e)}")
+        finally:
+            self.btn_drawer_archive.setEnabled(True)
+            self.btn_drawer_archive.setText("📁 一键归档")
+
+    def _on_drawer_temp_pack(self):
+        project = QgsProject.instance()
+        ext_layers = self.pkg_info.get('external_layers', [])
+        if not ext_layers:
+            QMessageBox.information(self, "提示", "当前工程所有图层均在工程目录下，无需临时沙箱收集。")
+            return
+
+        self.btn_drawer_temp.setEnabled(False)
+        self.btn_drawer_temp.setText("沙箱打包中...")
+        QApplication.processEvents()
+
+        try:
+            new_pkg = ProjectPackager.package_with_external_layers_temp(project)
+            self._apply_temp_package(new_pkg)
+            QMessageBox.information(
+                self,
+                "沙箱打包就绪",
+                "已在临时沙箱中将外部图层全量打包！\n\n"
+                "本地工程保持原样，左侧二维码与推送通道已自动更新为自包含完整包，手机端可正常加载。"
+            )
+            self._refresh_drawer_data()
+        except Exception as e:
+            QMessageBox.critical(self, "临时打包失败", f"处理外部图层打包时出错：\n{str(e)}")
+        finally:
+            self.btn_drawer_temp.setEnabled(True)
+            self.btn_drawer_temp.setText("⚡ 临时沙箱打包")
 
     def _apply_temp_package(self, pkg_info: dict):
         """Hot-swap active distribution payload with temporary self-contained package."""

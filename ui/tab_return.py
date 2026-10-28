@@ -19,8 +19,9 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QApplication, QComboBox, QFileDialog
+    QMessageBox, QApplication, QComboBox, QFileDialog, QMenu, QAction, QShortcut
 )
+from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QThread
 
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
@@ -105,13 +106,8 @@ class ReturnTab(QWidget):
 
         # Right: Android ADB Pull
         group_adb = QGroupBox("通道二：Android ADB 一键拉取")
+        group_adb.setToolTip("针对已连接电脑的 Android 手机，穿透系统沙盒直接将手机中更新的工程与现场照片拉回电脑")
         adb_layout = QVBoxLayout(group_adb)
-
-        adb_desc = QLabel(
-            "针对已连接电脑的 Android 手机，穿透系统沙盒直接将手机中更新的工程与现场照片拉回电脑："
-        )
-        adb_desc.setWordWrap(True)
-        adb_layout.addWidget(adb_desc)
 
         dev_row = QHBoxLayout()
         self.dev_combo = QComboBox()
@@ -127,6 +123,7 @@ class ReturnTab(QWidget):
         self.btn_pull = QPushButton("一键拉回手机外业成果 (ADB)")
         self.btn_pull.setIcon(get_icon("zap"))
         self.btn_pull.setDefault(True)
+        self.btn_pull.setToolTip("直接从已连接的 Android 手机 QField 目录拉取最新修改的数据与现场照片")
         self.btn_pull.clicked.connect(self._do_adb_pull)
         adb_layout.addWidget(self.btn_pull)
 
@@ -146,12 +143,15 @@ class ReturnTab(QWidget):
         stretch_mode = QHeaderView.Stretch if hasattr(QHeaderView, 'Stretch') else QHeaderView.ResizeMode.Stretch
         self.table.horizontalHeader().setSectionResizeMode(1, stretch_mode)
         self.table.setFixedHeight(130)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
+        QShortcut(QKeySequence.Delete, self.table, self._delete_selected_record)
         rec_layout.addWidget(self.table)
 
         # Action Buttons Row
         tbl_btn_row = QHBoxLayout()
 
-        btn_load_qgis = QPushButton("一键载入到当前 QGIS 画布")
+        btn_load_qgis = QPushButton("载入至当前工程")
         btn_load_qgis.setIcon(get_icon("package"))
         btn_load_qgis.setDefault(True)
         btn_load_qgis.setToolTip("自动解析所选成果中的矢量或栅格图层并直接上图对比")
@@ -163,10 +163,16 @@ class ReturnTab(QWidget):
         btn_open_selected.clicked.connect(self._open_selected_file_dir)
         tbl_btn_row.addWidget(btn_open_selected)
 
-        btn_unzip_selected = QPushButton("解压压缩包")
+        btn_unzip_selected = QPushButton("解压成果包")
         btn_unzip_selected.setIcon(get_icon("archive"))
         btn_unzip_selected.clicked.connect(self._unzip_selected_file)
         tbl_btn_row.addWidget(btn_unzip_selected)
+
+        btn_delete_selected = QPushButton("删除归档")
+        btn_delete_selected.setIcon(get_icon("trash") or get_icon("alert-triangle"))
+        btn_delete_selected.setToolTip("从本地磁盘彻底删除此成果归档 (Del)")
+        btn_delete_selected.clicked.connect(self._delete_selected_record)
+        tbl_btn_row.addWidget(btn_delete_selected)
 
         tbl_btn_row.addStretch()
 
@@ -393,6 +399,68 @@ class ReturnTab(QWidget):
                 self._open_path_in_explorer(dest)
         except Exception as e:
             QMessageBox.critical(self, "解压失败", f"解压过程发生异常: {str(e)}")
+
+    def _show_context_menu(self, pos):
+        item = self.table.itemAt(pos)
+        if not item:
+            return
+        row = item.row()
+        self.table.selectRow(row)
+        rec = self._get_selected_record()
+        if not rec:
+            return
+
+        menu = QMenu(self)
+        act_load = menu.addAction(get_icon("package"), "载入至当前工程 (上图比对)")
+        act_open = menu.addAction(get_icon("folder"), "在资源管理器中定位")
+        act_unzip = menu.addAction(get_icon("archive"), "解压成果包")
+        menu.addSeparator()
+        act_del = menu.addAction(get_icon("trash") or get_icon("alert-triangle"), "删除此归档 (Del)")
+
+        action = menu.exec_(self.table.viewport().mapToGlobal(pos))
+        if action == act_load:
+            self._load_selected_into_qgis()
+        elif action == act_open:
+            self._open_selected_file_dir()
+        elif action == act_unzip:
+            self._unzip_selected_file()
+        elif action == act_del:
+            self._delete_selected_record()
+
+    def _delete_selected_record(self):
+        rec = self._get_selected_record()
+        if not rec:
+            return
+
+        fname = rec.get('filename', '')
+        fpath = rec.get('path', '')
+
+        reply = QMessageBox.question(
+            self,
+            "确认删除归档",
+            f"确定要永久删除以下成果归档吗？\n\n"
+            f"📄 文件名: {fname}\n"
+            f"📁 路径: {fpath}\n\n"
+            f"⚠️ 警告：该操作将直接从本地磁盘中彻底物理删除此成果，无法恢复！",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+            elif os.path.isdir(fpath):
+                shutil.rmtree(fpath)
+
+            row = self.table.currentRow()
+            if 0 <= row < self.table.rowCount():
+                self.table.removeRow(row)
+            if rec in self.received_records:
+                self.received_records.remove(rec)
+        except Exception as e:
+            QMessageBox.critical(self, "删除失败", f"删除归档时发生错误：\n{str(e)}")
 
     def _get_path_size(self, path: str) -> int:
         if os.path.isfile(path):

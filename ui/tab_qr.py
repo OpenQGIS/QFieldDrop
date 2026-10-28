@@ -57,12 +57,12 @@ class QrDropTab(QWidget):
         right_col.setAlignment(Qt.AlignVCenter)
 
         self.btn_group = QButtonGroup(self)
-        self.rb_deeplink = QRadioButton("系统相机直达唤醒 (推荐)")
+        self.rb_deeplink = QRadioButton("相机直达唤醒")
         self.rb_deeplink.setChecked(True)
-        self.rb_deeplink.setToolTip("手机自带系统相机直接扫码，自动唤醒 QField 并弹出工程导入对话框")
+        self.rb_deeplink.setToolTip("推荐：手机自带系统相机直接扫码，自动唤醒 QField 并弹出工程导入确认")
 
-        self.rb_http = QRadioButton("扫码下载 ZIP 导入 (备用)")
-        self.rb_http.setToolTip("手机自带相机或浏览器扫码极速下载 ZIP，在 QField 点【➕】选择【从 ZIP 导入工程】")
+        self.rb_http = QRadioButton("下载 ZIP 导入")
+        self.rb_http.setToolTip("备用：手机扫码极速下载 ZIP，在 QField 首页点【➕】选择【从 ZIP 导入工程】")
 
         self.btn_group.addButton(self.rb_deeplink)
         self.btn_group.addButton(self.rb_http)
@@ -72,11 +72,8 @@ class QrDropTab(QWidget):
         right_col.addWidget(self.rb_deeplink)
         right_col.addWidget(self.rb_http)
 
-        self.scan_tip = QLabel("提示：使用手机自带相机扫码，直接唤醒 QField 并弹出导入确认")
+        self.scan_tip = QLabel("<small style='color: #64748B;'>手机自带相机扫码，立即可唤醒导入</small>")
         self.scan_tip.setWordWrap(True)
-        tip_font = self.scan_tip.font()
-        tip_font.setPointSize(max(8, tip_font.pointSize() - 1))
-        self.scan_tip.setFont(tip_font)
         right_col.addWidget(self.scan_tip)
 
         act_row = QHBoxLayout()
@@ -167,9 +164,9 @@ class QrDropTab(QWidget):
         active_url = self.current_deeplink_url if use_deeplink else self.current_http_url
 
         if use_deeplink:
-            self.scan_tip.setText("提示：使用手机自带相机扫码，直接唤醒 QField 并弹出导入确认")
+            self.scan_tip.setText("<small style='color: #64748B;'>手机自带相机扫码，立即可唤醒导入</small>")
         else:
-            self.scan_tip.setText("提示：扫码下载 ZIP 压缩包 ➔ 打开 QField ➔ 点击右下角【➕】➔ 选择【从 ZIP 导入工程】")
+            self.scan_tip.setText("<small style='color: #64748B;'>扫码下载后，在 QField 点【➕】从 ZIP 导入</small>")
 
         matrix = generate_qr_matrix(active_url, ecc='Q')
         icon_path = get_icon_path("DropOut")

@@ -85,24 +85,20 @@ class LocalSendTab(QWidget):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         layout.setContentsMargins(8, 8, 8, 8)
 
-        # 1. Info Label
-        info_lbl = QLabel(
-            "<b>免扫码直推说明：</b>手机端打开 <b>LocalSend</b> App 并保持在前台，与电脑处于同一局域网下，"
-            "下方将自动扫描在线手机。选择设备后点击发送即可免扫码秒传。"
-        )
-        info_lbl.setWordWrap(True)
-        layout.addWidget(info_lbl)
-
-        # 2. Devices GroupBox
+        # 1. Devices GroupBox
         group = QGroupBox("在线设备列表")
+        group.setToolTip("手机端打开 LocalSend 并保持在前台，连入同一 Wi-Fi 即可自动扫描")
         group_layout = QVBoxLayout(group)
 
         # Controls & List Header
         header_row = QHBoxLayout()
         header_row.addWidget(QLabel("目标手机设备:"))
+        lbl_hint = QLabel("<small style='color: #94A3B8;'>ℹ️ 手机打开 LocalSend 即自动发现</small>")
+        lbl_hint.setToolTip("请确保手机与电脑连入同一 Wi-Fi 或手机热点，并在手机端打开 LocalSend 保持在前台")
+        header_row.addWidget(lbl_hint)
         header_row.addStretch()
 
         # If VPN / proxy TUN is detected, show a clickable alert button instead of plain text
