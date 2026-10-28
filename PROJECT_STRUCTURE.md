@@ -1,0 +1,121 @@
+# QField LAN Drop 项目工程结构与资产四维归类文档 (Project Structure Guide)
+
+> **定位说明**：本文档针对当前工作区所有文件与衍生制品进行全量扫描与四维归类，明晰**开发代码**、**仓库推送**、**打包内容**与 **[Releases] 制品**的边界，作为工程化分发与版本治理的唯一基准结构规范。
+
+---
+
+## 🧭 一、四维核心概念与对比矩阵
+
+在 QGIS / QField 插件工程全生命周期中，资产依据使用场景与生命周期划分为四个维度：
+
+| 资产维度 | 核心定义与受众 | 物理路径 / 载体 | 包含原则与过滤机制 |
+| :--- | :--- | :--- | :--- |
+| 🛠️ **1. 开发代码 (Dev Code)** | 面向核心开发者、测试套件与自动化构建工具；包含调试脚本、测试样本、中间矢量稿及本地运行时缓存 | 当前开发插件目录：<br>`.../profiles/ForTest/python/plugins/QFieldDrop/` | **仅本地保留**；严禁打入官方分发包；缓存类文件严禁推入 Git |
+| 📦 **2. 仓库推送 (Git Repo)** | 面向开源协作者、代码审计 (PR) 与 GitHub CI/CD 流水线；沉淀版本演进、工程规范与完整源代码 | 远程 Git 仓库：<br>`https://github.com/OpenQGIS/QFieldDrop` | **受 Git 跟踪**；包含完整源码、文档、测试用例与构建脚本；排除运行时临时缓存 |
+| 🚀 **3. 打包内容 (Package Content)** | 面向 QGIS 官方插件门户（plugins.qgis.org）与终端用户的纯净运行时插件包 | 编译生成的临时/目标 ZIP 内部结构（如 `QFieldDrop/` 与移动端根结构） | **绝对纯净**；100% 剔除开发依赖、测试数据、未编译翻译与过程稿，通过官方安全合规扫描 |
+| 🏷️ **4. [Releases] 发布资产** | 面向 GitHub Releases、外业现场离线分发及历史版本基线归档的最终发布制品 | 物理脱离测试目录的专属归档库：<br>`E:\...\OpenQGIS_Lab\...\QFieldDrop\` | **标准化制品**；包含正式命名 ZIP、通用别名 ZIP、SHA256 校验清单及镜像源码 |
+
+---
+
+## 📂 二、当前项目全量文件四维归类清单
+
+下表为对当前插件工作区内所有目录与文件逐一扫描后的归类对照（按目录层级展开）：
+
+| 文件 / 目录路径 | 文件类型与作用 | 1. 开发代码 | 2. 仓库推送 | 3. 打包内容 | 4. [Releases] | 备注说明 |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **`__init__.py`** | 桌面端插件入口工厂函数 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | QGIS 插件必备入口 (`classFactory`) |
+| **`plugin.py`** | 插件核心调度与 UI 注册逻辑 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 工具栏按钮、菜单动作与对话框生命周期 |
+| **`metadata.txt`** | 桌面端 QGIS 插件元数据配置 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 索引 `icon=icon/QFieldDrop_logo.svg` |
+| **`README.md`** | 项目首页架构与图文使用说明 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 用户离线查看与 GitHub 主页 |
+| **`LICENSE`** | GNU GPL v3 开源许可证文本 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 官方审核与开源分发强制必备 |
+| **`CHANGELOG.md`** | 语义化版本更新日志 (中英双语) | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 每次发布记录更新点 |
+| **`i18n_strings.py`** | 国际化静态字符串表与保底字典 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 双保险 i18n 机制核心 |
+| **`i18n_helper.py`** | 多语言加载与动态切换辅助模块 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 动态识别当前系统与 QGIS Locale |
+| **`build_clean_release.py`** | 桌面端与移动端双轨纯净打包脚本 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 本地构建发布流水线工具 |
+| **`build_mobile_release.py`** | 移动端 QField 插件独立打包脚本 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 自动化生成移动端各格式安装包与校验码 |
+| **`build_icons_component.py`** | Inkscape 矢量图标母稿拼装脚本 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 图标切图与组件库构建脚本 |
+| **`ROADMAP.md`** | 开发迭代计划与敏捷路线图 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 协作者参考，官方分发严禁携带 |
+| **`DISTRIBUTION_GUIDE.md`**| 插件发布规范与分发指引文档 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 团队发布规范指导文档 |
+| **`PROJECT_STRUCTURE.md`** | 本项目工程结构与四维归类文档 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 本结构规范文档 |
+| **`.gitignore`** | Git 版本管理排除规则配置 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 过滤临时文件与字节码 |
+| **`.pytest_cache/`** | pytest 测试运行状态缓存 | ✅ **开发代码** | ❌ **严禁** | ❌ **排除** | ❌ 不打包 | 本地临时缓存，严禁污染仓库与发布包 |
+| **`__pycache__/` (各级)** | Python 编译生成的字节码 (`*.pyc`) | ✅ **开发代码** | ❌ **严禁** | ❌ **排除** | ❌ 不打包 | 运行时生成，严禁打入分发包 |
+| **`core/` (全部模块)** | 核心协议与网络服务层 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 纯底层算法：packager, net_server, qr, localsend, adb 等 |
+| **`ui/` (全部模块)** | 原生 Qt 对话框与面板组件 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 界面交互与控制台面板 |
+| **`i18n/*.qm`** | 编译后的二进制多语言包 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 运行时直接加载的二进制翻译包 |
+| **`i18n/*.ts`** | Linguist 源码翻译源文本 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 仅用于编译，分发包剔除以减小体积 |
+| **`i18n/build_i18n.py`** | 提取与编译 QM 文件的工具脚本 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 仅构建期使用 |
+| **`icon/QFieldDrop_logo.svg`**| 插件主入口 Logo 图标 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | metadata.txt 索引的官方图标 |
+| **`icon/icon_*.svg`** | 顶层三大动作按钮矢量图标 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 投送、接收、安装助手的工具栏图标 |
+| **`icon/0_icons.svg`** | 基础图标母稿设计源文件 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | Inkscape 原始过程工程图 |
+| **`icons/*.svg` (21个)** | 界面各控件使用的标准 SVG 图标 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | refresh, smartphone, zap, link 等 |
+| **`icons/0_icons_Component.svg`**| 组件库母稿源文件 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | Inkscape 组件库母稿 |
+| **`mobile/main.qml`** | 移动端 QField 助手界面与回传逻辑 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 手机端核心 QML 源码 |
+| **`mobile/metadata.txt`** | 移动端 QField 插件元数据 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 手机 QField 插件描述配置 |
+| **`mobile/icon.svg`** | 移动端 QField 助手工具栏图标 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 手机端最新矢量图标 (已同步) |
+| **`mobile/LICENSE` & `README`**| 移动端开源许可证与说明 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 手机端独立插件说明 |
+| **`companion/`** | 伴侣拉取插件源码与工程资产 | ❌ 仅开发 | ✅ **推送** | ✅ **打包** | ✅ (在ZIP内) | 辅助配套移动端资产 |
+| **`tests/` (全部模块)** | 单元测试脚本与测试固件 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 自动化回归测试套件 |
+| **`testdata/`** | 测试样本工程与脱敏数据 | ✅ **开发代码** | ✅ **推送** | ❌ **排除** | ❌ 不打包 | 测试运行输入数据 |
+
+---
+
+## 🏷️ 三、[Releases] 发布资产制品库结构 (`OpenQGIS_LAB`)
+
+根据团队发布流水线规范，所有面向最终用户与 GitHub Releases 的打包制品物理脱离开发工作区，统一输出并归档于专用仓库：
+
+> **物理基准路径**：`E:\QGIS文章\OpenQGIS_Lab\OpenQGIS_QGISPlugins_LAB\QFieldDrop\`
+
+```plaintext
+E:\...\OpenQGIS_Lab\OpenQGIS_QGISPlugins_LAB\QFieldDrop/
+├── QFieldDrop-4QGIS/                        # 【A. 桌面端 QGIS 官方分发区】
+│   ├── QFieldDrop_V-1.0.1.zip               # ⭐️ 官方纯净分发包 (上传 plugins.qgis.org 或离线安装)
+│   └── QFieldDrop/                          # 纯净源码镜像 (脱敏剔除所有测试/构建脚本后的运行时源码)
+│
+├── QFieldDropMobile/                        # 【B. 移动端 QField 助手独立发布区】
+│   ├── QFieldDropMobile_V-1.0.1.zip         # ⭐️ QField 原生标准根目录安装包 (从压缩包安装)
+│   ├── qfield_drop_mobile.zip               # 通用直链别名包 (用于局域网扫码与静态下载)
+│   ├── QFieldDropMobile_folder_V-1.0.1.zip  # 沙盒解压专用包 (内置 qfield_drop/ 包裹文件夹)
+│   ├── README.md                            # 移动端发布说明与官方 SHA-256 校验清单表
+│   └── QFieldDropMobile/                    # 移动端纯净源码镜像
+│
+└── QFieldDrop_History/                      # 【C. 版本演进历史归档库】
+    ├── QFieldDrop_V-1.0.1.zip               # 桌面端历史版本快照
+    ├── QFieldDropMobile_V-1.0.1.zip         # 移动端历史直装包快照
+    └── QFieldDropMobile_folder_V-1.0.1.zip  # 移动端历史沙盒包快照
+```
+
+### 3.1 移动端发布包 SHA-256 校验基准
+
+| 资产文件名 | 适用安装场景 | SHA-256 校验和 |
+| :--- | :--- | :--- |
+| **`QFieldDropMobile_V-1.0.1.zip`** | 手机 QField 内部：设置 $\rightarrow$ 插件 $\rightarrow$ 从压缩包安装 (推荐) | `fe897035b3bcf3969d243a672f944d6bbda9e83034014657030ccedba071b85f` |
+| **`qfield_drop_mobile.zip`** | 局域网 HTTP 扫码在线直链下载 | `fe897035b3bcf3969d243a672f944d6bbda9e83034014657030ccedba071b85f` |
+| **`QFieldDropMobile_folder_V-1.0.1.zip`** | Android 手机文件管理器手动解压至 `/sdcard/.../plugins/qfield_drop/` | `cbdc025766efb96c059bac61b8bbe78ff2c4f3be6fef93fcfe1c73dcbb6674db` |
+
+---
+
+## 🛠️ 四、打包与分发流水线指令
+
+项目已配置一键式流水线脚本，可在开发根目录下直接调用：
+
+1. **桌面端 + 移动端 全量纯净打包**：
+   ```powershell
+   python build_clean_release.py
+   ```
+   * 自动解析两端 `metadata.txt` 语义化版本号；
+   * 严格剔除 `tests/`、`testdata/`、`0_*.svg`、`*.pyc` 等开发杂质；
+   * 强制检查所有 ZIP 条目均为 POSIX 正斜杠 `/`；
+   * 自动归档至 `QFieldDrop-4QGIS/`、`QFieldDropMobile/` 与 `QFieldDrop_History/`。
+
+2. **移动端单独快速打包**：
+   ```powershell
+   python build_mobile_release.py
+   ```
+   * 独立快速构建 3 种格式的移动端 QField 安装包并自动更新 `README.md` 校验码。
+
+3. **多语言二进制编译**：
+   ```powershell
+   python i18n/build_i18n.py zh_CN
+   python i18n/build_i18n.py zh_TW
+   ```

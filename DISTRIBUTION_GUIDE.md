@@ -89,7 +89,7 @@
 
 ## 五、分发打包双轨工作流与物理路径
 
-分发体系采用**纯净发布包**与**开发历史归档包**双轨制管理，物理路径脱离实时测试目录：
+分发体系采用**纯净发布包**与**开发历史归档包**双轨制管理，物理路径脱离实时测试目录。各目录资产的四维归类（开发/推送/打包/Releases）详见 [PROJECT_STRUCTURE.md](file:///c:/Users/tesla/AppData/Roaming/QGIS/QGIS3/profiles/ForTest/python/plugins/QFieldDrop/PROJECT_STRUCTURE.md)。
 
 ### 5.1 正式分发发布路径 (`QFieldDrop-4QGIS`)
 存放面向 QGIS 官方门户（plugins.qgis.org）或用户分发的纯净制品：
@@ -111,8 +111,9 @@
   ├── i18n_helper.py
   ├── core/            # 核心业务算法、网络服务与 ADB 推送引擎
   ├── ui/              # 原生 Qt 对话框、面板与上下文组件
-  ├── icon/            # 插件入口主 Logo (icon.svg)
-  ├── icons/           # 运行时矢量操作图标 (refresh, phone, link 等)
+  ├── icon/            # 插件入口主 Logo (icon/QFieldDrop_logo.svg) 与动作图标
+  ├── icons/           # 运行时矢量操作图标集 (21 个矢量图标)
+  ├── mobile/          # 手机端 QField 独立伴侣插件 (main.qml, metadata.txt, icon.svg)
   ├── companion/       # 手机配套插件资产 (qfield_lan_pull)
   └── i18n/
       ├── QFieldDrop_zh_CN.qm  # 编译后的二进制翻译
@@ -120,18 +121,28 @@
   ```
 
 * **绝对剔除内容 (Exclude Rules)**：
-  - ❌ 路线图与开发指南：`ROADMAP.md`、`DISTRIBUTION_GUIDE.md`、`docs/`
+  - ❌ 路线图与开发指南：`ROADMAP.md`、`DISTRIBUTION_GUIDE.md`、`PROJECT_STRUCTURE.md`、`docs/`
   - ❌ 自动化测试与测试数据：`tests/`、`testdata/`
   - ❌ 源码翻译编辑源文件：`i18n/*.ts`、`i18n/build_i18n.py`、`keys.json`
   - ❌ 历史压缩包与编译缓存：`*.zip`、`*.pyc`、所有 `__pycache__/` 文件夹
   - ❌ 版本控制与 IDE 隐藏目录：`.git/`、`.gitignore`、`.vscode/`、`.idea/`
-  - ❌ 设计临时稿与母图：`0_*.svg`、`build_icons_component.py`
+  - ❌ 设计临时稿与构建脚本：`0_*.svg`、`build_*.py`
   - ❌ 静态安全扫描配置文件：`.bandit`、`.flake8`、`.secrets.baseline`
 
 * **ZIP 规范要求 (CRITICAL)**：
   - 顶级解压目录名必须为 **`QFieldDrop/`**（合规 PEP 8 命名，非数字开头）；
   - ZIP 内部所有条目路径分隔符必须为正斜杠 `/`（严禁 Windows 反斜杠 `\`）；
   - 发布包命名格式：统一使用 **`QFieldDrop_V-X.Y.Z.zip`**。
+
+### 5.2 移动端独立发布路径 (`QFieldDropMobile`)
+存放面向手机 QField 客户端一键安装与 GitHub Releases 的配套移动端制品：
+- **路径**：`E:\QGIS文章\OpenQGIS_Lab\OpenQGIS_QGISPlugins_LAB\QFieldDrop\QFieldDropMobile\`
+- **包含内容**：
+  1. `QFieldDropMobile_V-X.Y.Z.zip` —— QField 原生根目录直装包（从压缩包安装首选）；
+  2. `qfield_drop_mobile.zip` —— 通用直链别名包（用于局域网扫码直链与静态分发）；
+  3. `QFieldDropMobile_folder_V-X.Y.Z.zip` —— 沙盒专用包（内含 `qfield_drop/` 文件夹包裹）；
+  4. `README.md` —— 移动端发布说明与官方 SHA-256 校验清单；
+  5. `QFieldDropMobile/` —— 移动端纯净源码镜像。
 
 ### 5.2 历史归档库路径 (`QFieldDrop_History`)
 用于开发者本地版本演进归档、全量源码备份与复现追踪：

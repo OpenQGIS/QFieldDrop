@@ -36,10 +36,10 @@ EXCLUDE_DIRS = {
 # 严禁打入官方分发包的黑名单文件通配符
 EXCLUDE_FILE_PATTERNS = [
     "0_*.svg", "*.pyc", "*.pyo", "*.pyd.tmp",
-    "ROADMAP.md", "DISTRIBUTION_GUIDE.md",
+    "ROADMAP.md", "DISTRIBUTION_GUIDE.md", "PROJECT_STRUCTURE.md",
     "*.gpkg-shm", "*.gpkg-wal", "*.db", "keys.json",
     ".gitignore", ".bandit", ".flake8", "*.log",
-    "build_clean_release.py", "build_icons_component.py",
+    "build_clean_release.py", "build_icons_component.py", "build_mobile_release.py",
     "*.ts", "build_i18n.py"
 ]
 

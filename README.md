@@ -37,43 +37,55 @@ QGIS 工具栏:  [ 📤 投送工程至 QField ]   [ 📥 接收 QField 成果 ]
 
 ## 📂 多模块工程结构说明
 
-各模块职责清晰，单文件保持在 40~350 行之间，有效避免上下文溢出与代码膨胀：
+各模块职责清晰，单文件保持在 40~350 行之间，有效避免上下文溢出与代码膨胀。关于开发、推送、打包与 Releases 资产的完整四维归类，请详阅 [PROJECT_STRUCTURE.md](file:///c:/Users/tesla/AppData/Roaming/QGIS/QGIS3/profiles/ForTest/python/plugins/QFieldDrop/PROJECT_STRUCTURE.md)。
 
 ```plaintext
 QFieldDrop/
 ├── __init__.py                  # 插件入口工厂函数 (classFactory)
-├── metadata.txt                 # QGIS 插件元数据配置
-├── icon_send.svg                # [📤 投送] 专属高清矢量图标
-├── icon_receive.svg             # [📥 接收] 专属高清矢量图标
-├── icon.svg                     # 基础总图标
-├── plugin.py                    # 双按钮注册、菜单挂载与按需调度逻辑
+├── plugin.py                    # 动作注册、菜单挂载与按需调度逻辑
+├── metadata.txt                 # QGIS 插件元数据配置 (索引 icon/QFieldDrop_logo.svg)
+├── i18n_strings.py              # 多语言静态字典与保底机制
+├── i18n_helper.py               # 多语言加载与动态切换辅助
 ├── README.md                    # 架构与使用指南
+├── LICENSE                      # GNU GPL v3 开源许可证
+├── CHANGELOG.md                 # 语义化双语更新日志
+├── PROJECT_STRUCTURE.md         # 工程结构与资产四维归类详案
+├── DISTRIBUTION_GUIDE.md        # 官方插件发布规范与分发指引
+├── build_clean_release.py       # 桌面端+移动端双轨纯净发布包构建脚本
+├── build_mobile_release.py      # 移动端 QField 插件独立构建与校验脚本
 │
 ├── core/                        # 核心协议与后台服务层 (纯业务逻辑，无 GUI 依赖)
 │   ├── __init__.py              # 统一对外导出接口
 │   ├── packager.py              # 工程静默打包引擎 (临时文件过滤、外部图层预检、ZIP生成)
-│   ├── net_server.py            # 多网卡/热点 IP 探测、后台 HTTP 流式下载与 /upload 移动端回传服务
+│   ├── net_server.py            # 多网卡探测、HTTP 流式下载与移动端回传服务
 │   ├── qr_native.py             # 零依赖 QR 矩阵生成与 QPixmap 内存高清渲染
-│   ├── qrcodegen.py             # Nayuki 官方纯 Python 极简二维码算法核心 (MIT)
-│   ├── localsend.py             # LocalSend v2 协议实现 (UDP 组播监听 + REST API 客户端)
-│   ├── mdns_server.py           # mDNS 组播响应器 (qgis-drop.local 局域网域名广播)
-│   └── adb_pusher.py            # Android ADB 无线/USB 静默推送与一键拉回 (Pull) 底层引擎
+│   ├── qrcodegen.py             # Nayuki 纯 Python 极简二维码算法核心 (MIT)
+│   ├── localsend.py             # LocalSend v2 协议实现 (UDP 组播探测 + REST 传输)
+│   ├── mdns_server.py           # mDNS 组播响应器 (局域网域名广播)
+│   ├── adb_pusher.py            # Android ADB 静默推送与拉回引擎
+│   └── compat.py                # 跨版本与跨平台兼容层
 │
-├── ui/                          # 界面表现层 (各标签页与子对话框独立拆解封装)
+├── ui/                          # 界面表现层 (独立对话框与分发面板)
 │   ├── __init__.py              # 统一导出 UI 对话框与面板
-│   ├── share_dialog.py          # 主窗口框架控制器 (双模式初始化、服务生命周期、Tab 编排)
-│   ├── tab_qr.py                # Tab 0: 扫码唤醒分发面板 (IP 切换、双码切换、放行命令)
-│   ├── tab_localsend.py         # Tab 1: LocalSend 免扫码直推面板 (设备扫描、列表展示、推送进度)
-│   ├── tab_return.py            # Tab 2: 外业成果回传面板 (网页扫码上传二维码、ADB 一键拉回、归档列表、一键解压)
-│   ├── tab_advanced.py          # Tab 3: 高阶通道面板 (ADB 推送引导、mDNS 状态、伴侣插件导出)
-│   ├── adb_dialog.py            # ADB 设备选择、无线连接与推送执行控制台
-│   └── external_layers_dialog.py# 外部绝对路径图层预检详情弹窗
+│   ├── send_dialog.py           # [📤 投送] 对话框主控制器
+│   ├── receive_dialog.py        # [📥 接收] 对话框主控制器 (<0.1s 秒开)
+│   ├── mobile_install_dialog.py # [📱 助手安装] 移动端伴侣多通道部署窗口
+│   ├── tab_qr.py                # Tab: 扫码唤醒分发面板
+│   ├── tab_localsend.py         # Tab: LocalSend 免扫码直推面板
+│   ├── tab_return.py            # Tab: 外业成果回传面板
+│   └── icon_helper.py           # 原生矢量与状态感知图标辅助引擎
 │
-└── companion/                   # 配套移动端插件资产
-    └── qfield_lan_pull/         # 移动端 QField QML 辅助拉取插件源码 (支持一键导出 ZIP)
-        ├── metadata.txt
-        ├── main.qml
-        └── icon.svg
+├── icon/                        # 顶层入口图标 (含官方 Logo 与动作图标)
+│   ├── QFieldDrop_logo.svg      # 官方标准插件 Logo
+│   ├── icon_send.svg            # 投送工程动作图标
+│   ├── icon_receive.svg         # 接收成果动作图标
+│   └── icon_mobile.svg          # 手机端助手动作图标
+│
+├── icons/                       # 运行时高清操作图标集 (21 个矢量图标)
+├── mobile/                      # 手机端 QField 独立伴侣插件源码 (main.qml, metadata.txt, icon.svg)
+├── i18n/                        # 多语言源码与编译文件 (*.ts, *.qm, build_i18n.py)
+├── tests/                       # 自动化回归测试套件
+└── testdata/                    # 测试样本工程与数据
 ```
 
 ---
