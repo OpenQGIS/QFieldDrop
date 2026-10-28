@@ -85,11 +85,11 @@ class LocalSendTab(QWidget):
 
         # Controls & List Header
         header_row = QHBoxLayout()
-        header_row.addWidget(QLabel("选择目标手机设备:"))
+        header_row.addWidget(QLabel("目标手机设备:"))
         header_row.addStretch()
 
-        self.btn_refresh = QPushButton("重新扫描")
-        self.btn_refresh.setIcon(get_icon("search"))
+        self.btn_refresh = QPushButton("刷新")
+        self.btn_refresh.setIcon(get_icon("refresh"))
         self.btn_refresh.clicked.connect(self.start_scan)
         header_row.addWidget(self.btn_refresh)
         group_layout.addLayout(header_row)
@@ -108,15 +108,15 @@ class LocalSendTab(QWidget):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(12)
+        self.progress_bar.setTextVisible(True)
         self.progress_bar.hide()
         group_layout.addWidget(self.progress_bar)
 
         # Send Button
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.btn_send = QPushButton("推送到选中手机 (免扫码)")
-        self.btn_send.setIcon(get_icon("send"))
+        self.btn_send = QPushButton("推送工程至所选设备")
+        self.btn_send.setIcon(get_icon("radio"))
         self.btn_send.setEnabled(False)
         self.btn_send.setDefault(True)
         self.btn_send.clicked.connect(self._send_to_device)

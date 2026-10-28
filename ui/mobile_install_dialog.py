@@ -16,7 +16,8 @@ from typing import Optional
 
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QLineEdit, QComboBox, QMessageBox, QApplication, QFileDialog
+    QGroupBox, QLineEdit, QComboBox, QMessageBox, QApplication, QFileDialog,
+    QDialogButtonBox
 )
 from qgis.PyQt.QtCore import Qt
 
@@ -62,30 +63,37 @@ class MobileInstallDialog(QDialog):
         layout.addLayout(ip_row)
 
         # 2. Channel 1: QR Code
-        group_qr = QGroupBox("通道一：扫码安装插件 (推荐)")
+        group_qr = QGroupBox("扫码安装手机端助手")
         qr_layout = QVBoxLayout(group_qr)
         qr_layout.setAlignment(ALIGN_CENTER)
+        qr_layout.setContentsMargins(9, 8, 9, 8)
+        qr_layout.setSpacing(6)
 
         self.qr_label = QLabel()
         self.qr_label.setFixedSize(180, 180)
         self.qr_label.setAlignment(ALIGN_CENTER)
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
         qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
 
         qr_tip = QLabel(
-            "<b>最佳方式：</b>在手机 QField 中打开【设置】→【插件】→【从 URL 安装】，<br>"
-            "点击输入框右侧的 <b>📷 扫码图标</b> 扫描此码，即可直接下载并激活！<br>"
-            "<span style='color: #64748B; font-size: 11px;'>（注：若用手机浏览器扫码，则自动下载 ZIP 安装包，在 QField 中【从压缩包安装】）</span>"
+            "提示：在手机 QField 中打开【设置】→【插件】→【从 URL 安装】，<br>"
+            "点击输入框右侧的扫码图标扫描此码，即可直接下载并激活。<br>"
+            "（注：若使用手机自带浏览器扫码，将下载 ZIP 安装包，可在 QField 中选择【从压缩包安装】）"
         )
         qr_tip.setWordWrap(True)
         qr_tip.setAlignment(ALIGN_CENTER)
+        tip_f = qr_tip.font()
+        tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
+        qr_tip.setFont(tip_f)
         qr_layout.addWidget(qr_tip)
 
         layout.addWidget(group_qr)
 
         # 3. Channel 2: QField URL Input (For devices without camera)
-        group_url = QGroupBox("通道二：QField 内部输入 URL 安装 (无摄像头/三防平板)")
+        group_url = QGroupBox("从 URL 安装 (无相机设备)")
         url_layout = QVBoxLayout(group_url)
+        url_layout.setSpacing(6)
+        url_layout.setContentsMargins(9, 8, 9, 8)
 
         url_desc = QLabel(
             "手机打开 QField，进入【设置】→【插件 (Plugins)】→【从 URL 安装 (Install from URL)】，输入："
@@ -107,8 +115,10 @@ class MobileInstallDialog(QDialog):
         layout.addWidget(group_url)
 
         # 4. Channel 3: Android ADB Direct Injection (Zero-touch)
-        group_adb = QGroupBox("通道三：Android ADB 一键静默写入 (免扫码免输入)")
+        group_adb = QGroupBox("Android ADB 直接写入")
         adb_layout = QVBoxLayout(group_adb)
+        adb_layout.setSpacing(6)
+        adb_layout.setContentsMargins(9, 8, 9, 8)
 
         adb_desc = QLabel(
             "手机连接 USB 数据线或开启无线调试，直接由电脑将插件写入 QField 沙盒内部："
@@ -121,12 +131,12 @@ class MobileInstallDialog(QDialog):
         self.dev_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         dev_row.addWidget(self.dev_combo, 1)
 
-        btn_refresh_dev = QPushButton("刷新设备")
+        btn_refresh_dev = QPushButton("刷新")
         btn_refresh_dev.setIcon(get_icon("refresh"))
         btn_refresh_dev.clicked.connect(self._refresh_adb_devices)
         dev_row.addWidget(btn_refresh_dev)
 
-        self.btn_install_adb = QPushButton("一键写入手机 QField (ADB)")
+        self.btn_install_adb = QPushButton("写入手机插件目录")
         self.btn_install_adb.setIcon(get_icon("zap"))
         self.btn_install_adb.setDefault(True)
         self.btn_install_adb.clicked.connect(self._install_via_adb)
@@ -135,19 +145,20 @@ class MobileInstallDialog(QDialog):
 
         layout.addWidget(group_adb)
 
-        # 5. Bottom Actions
+        # 5. Bottom Native Actions with QDialogButtonBox
         bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 4, 0, 0)
 
-        btn_export = QPushButton("导出离线安装包 (ZIP)")
+        btn_export = QPushButton("导出离线安装包 (ZIP)...")
         btn_export.setIcon(get_icon("download"))
         btn_export.clicked.connect(self._export_offline_zip)
         bottom_row.addWidget(btn_export)
 
         bottom_row.addStretch()
 
-        btn_close = QPushButton("关闭")
-        btn_close.clicked.connect(self.close)
-        bottom_row.addWidget(btn_close)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        self.button_box.rejected.connect(self.close)
+        bottom_row.addWidget(self.button_box)
 
         layout.addLayout(bottom_row)
 

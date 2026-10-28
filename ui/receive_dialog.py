@@ -18,7 +18,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer
 from qgis.PyQt.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QApplication, QComboBox, QFileDialog
+    QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 
@@ -105,13 +105,15 @@ class QFieldReceiveDialog(QDialog):
         channels_box = QHBoxLayout()
 
         # Left: Mobile Scan Return
-        group_web = QGroupBox("通道一：手机扫码回传")
+        group_web = QGroupBox("手机扫码回传")
         web_layout = QVBoxLayout(group_web)
         web_layout.setAlignment(ALIGN_CENTER)
+        web_layout.setContentsMargins(9, 8, 9, 8)
+        web_layout.setSpacing(6)
 
         # IP Selection Row
         ip_row = QHBoxLayout()
-        ip_row.addWidget(QLabel("选择接收网卡:"))
+        ip_row.addWidget(QLabel("接收网卡:"))
         self.ip_combo = QComboBox()
         self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         for item in NetworkHelper.get_all_lan_ips():
@@ -123,20 +125,24 @@ class QFieldReceiveDialog(QDialog):
         self.qr_label = QLabel()
         self.qr_label.setFixedSize(160, 160)
         self.qr_label.setAlignment(ALIGN_CENTER)
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CCCCCC;")
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
         web_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
 
         qr_tip = QLabel("手机相机直接扫码，在网页选择成果文件即可极速上传")
         qr_tip.setAlignment(ALIGN_CENTER)
-        qr_tip.setStyleSheet("color: #475569; font-size: 11px;")
+        tip_f = qr_tip.font()
+        tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
+        qr_tip.setFont(tip_f)
         web_layout.addWidget(qr_tip)
 
         self.url_label = QLabel()
         self.url_label.setAlignment(ALIGN_CENTER)
-        self.url_label.setStyleSheet("font-size: 11px; color: #0284C7;")
+        url_f = self.url_label.font()
+        url_f.setPointSize(max(8, url_f.pointSize() - 1))
+        self.url_label.setFont(url_f)
         web_layout.addWidget(self.url_label)
 
-        btn_copy_upload = QPushButton("复制回传网页网址")
+        btn_copy_upload = QPushButton("复制回传网址")
         btn_copy_upload.setIcon(get_icon("copy"))
         btn_copy_upload.clicked.connect(self._copy_upload_url)
         web_layout.addWidget(btn_copy_upload)
@@ -144,8 +150,10 @@ class QFieldReceiveDialog(QDialog):
         channels_box.addWidget(group_web, 1)
 
         # Right: Android ADB Pull
-        group_adb = QGroupBox("通道二：Android ADB 一键拉取")
+        group_adb = QGroupBox("Android ADB 拉取")
         adb_layout = QVBoxLayout(group_adb)
+        adb_layout.setContentsMargins(9, 8, 9, 8)
+        adb_layout.setSpacing(6)
 
         adb_desc = QLabel(
             "通过 USB 或无线调试连接的 Android 手机，免打开网页，直接穿透系统沙盒将 QField 最新工程与照片拉回电脑："
@@ -162,10 +170,15 @@ class QFieldReceiveDialog(QDialog):
         btn_refresh_dev.setIcon(get_icon("refresh"))
         btn_refresh_dev.clicked.connect(self._refresh_adb_devices)
         dev_row.addWidget(btn_refresh_dev)
+
+        self.btn_browse_adb = QPushButton("浏览...")
+        self.btn_browse_adb.setIcon(get_icon("folder"))
+        self.btn_browse_adb.clicked.connect(self._browse_custom_adb)
+        dev_row.addWidget(self.btn_browse_adb)
         adb_layout.addLayout(dev_row)
 
-        self.btn_pull = QPushButton("一键拉回手机外业成果 (ADB)")
-        self.btn_pull.setIcon(get_icon("zap"))
+        self.btn_pull = QPushButton("拉取成果至本地")
+        self.btn_pull.setIcon(get_icon("download"))
         self.btn_pull.setDefault(True)
         self.btn_pull.clicked.connect(self._do_adb_pull)
         adb_layout.addWidget(self.btn_pull)
@@ -176,8 +189,10 @@ class QFieldReceiveDialog(QDialog):
         layout.addLayout(channels_box)
 
         # 3. Received Archives Table & Management
-        group_records = QGroupBox("已收到的外业成果列表")
+        group_records = QGroupBox("外业成果归档记录")
         rec_layout = QVBoxLayout(group_records)
+        rec_layout.setContentsMargins(9, 8, 9, 8)
+        rec_layout.setSpacing(6)
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["时间", "成果文件", "大小", "回传来源"])
@@ -190,19 +205,19 @@ class QFieldReceiveDialog(QDialog):
 
         tbl_btn_row = QHBoxLayout()
 
-        btn_load_qgis = QPushButton("一键载入到当前 QGIS 画布")
-        btn_load_qgis.setIcon(get_icon("package"))
+        btn_load_qgis = QPushButton("载入至当前工程")
+        btn_load_qgis.setIcon(get_icon("add"))
         btn_load_qgis.setDefault(True)
         btn_load_qgis.setToolTip("自动解析所选成果中的矢量或栅格图层并直接上图对比")
         btn_load_qgis.clicked.connect(self._load_selected_into_qgis)
         tbl_btn_row.addWidget(btn_load_qgis)
 
-        btn_open_selected = QPushButton("查看文件所在目录")
+        btn_open_selected = QPushButton("打开所在目录")
         btn_open_selected.setIcon(get_icon("folder"))
         btn_open_selected.clicked.connect(self._open_selected_file_dir)
         tbl_btn_row.addWidget(btn_open_selected)
 
-        btn_unzip_selected = QPushButton("解压压缩包")
+        btn_unzip_selected = QPushButton("解压成果包")
         btn_unzip_selected.setIcon(get_icon("archive"))
         btn_unzip_selected.clicked.connect(self._unzip_selected_file)
         tbl_btn_row.addWidget(btn_unzip_selected)
@@ -214,16 +229,17 @@ class QFieldReceiveDialog(QDialog):
 
         # 4. Bottom Native Bar: Status & Close
         bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 4, 0, 0)
         self.status_icon = QLabel()
-        self.status_icon.setPixmap(get_icon("globe").pixmap(16, 16))
+        self.status_icon.setPixmap(get_icon("info").pixmap(16, 16))
         bottom_row.addWidget(self.status_icon)
 
         self.status_box = QLabel(f"成果接收服务已就绪，正在监听局域网端口 :{self.port}")
         bottom_row.addWidget(self.status_box, 1)
 
-        btn_close = QPushButton("关闭")
-        btn_close.clicked.connect(self.close)
-        bottom_row.addWidget(btn_close)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        self.button_box.rejected.connect(self.close)
+        bottom_row.addWidget(self.button_box)
 
         layout.addLayout(bottom_row)
 
@@ -256,7 +272,7 @@ class QFieldReceiveDialog(QDialog):
     def _refresh_adb_devices(self):
         self.dev_combo.clear()
         if not AdbPusher.is_adb_available():
-            self.dev_combo.addItem("未检测到 adb (需安装 Platform Tools)", "")
+            self.dev_combo.addItem("未检测到 adb (请点击右侧配置)", "")
             self.btn_pull.setEnabled(False)
             return
 
@@ -268,6 +284,15 @@ class QFieldReceiveDialog(QDialog):
             for serial, status in devices:
                 self.dev_combo.addItem(f"{serial} ({status})", serial)
             self.btn_pull.setEnabled(True)
+
+    def _browse_custom_adb(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择本地 adb.exe 命令行工具", "", "ADB Executable (adb.exe adb);;All Files (*)"
+        )
+        if path and os.path.isfile(path):
+            AdbPusher.set_custom_adb_path(path)
+            self._refresh_adb_devices()
+            QMessageBox.information(self, "配置成功", f"已成功指定 ADB 路径：\n{path}")
 
     def _do_adb_pull(self):
         serial = self.dev_combo.currentData()

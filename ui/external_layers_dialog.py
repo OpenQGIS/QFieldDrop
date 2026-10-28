@@ -8,7 +8,8 @@ Native QGIS Desktop UI style.
 from typing import List, Dict, Any
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox,
+    QDialogButtonBox
 )
 from .icon_helper import get_icon
 
@@ -49,9 +50,9 @@ class ExternalLayersDialog(QDialog):
         layout.addWidget(group)
 
         btn_box = QHBoxLayout()
+        btn_box.setContentsMargins(0, 4, 0, 0)
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
         btn_box.addStretch()
-        btn_close = QPushButton("我知道了")
-        btn_close.setDefault(True)
-        btn_close.clicked.connect(self.accept)
-        btn_box.addWidget(btn_close)
+        btn_box.addWidget(button_box)
         layout.addLayout(btn_box)

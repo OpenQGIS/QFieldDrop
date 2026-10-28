@@ -33,6 +33,14 @@ def _get_ssl_context():
     return ctx
 
 
+def _get_opener():
+    """Builds a dedicated opener that bypasses system/VPN proxies (Clash, etc.) for local LAN."""
+    ctx = _get_ssl_context()
+    https_handler = urllib.request.HTTPSHandler(context=ctx)
+    proxy_handler = urllib.request.ProxyHandler({})  # Strictly disable system / VPN proxy for LAN
+    return urllib.request.build_opener(proxy_handler, https_handler)
+
+
 class LocalSendDevice:
     def __init__(
         self,
@@ -88,24 +96,56 @@ class LocalSendDiscovery:
     @classmethod
     def fetch_device_info(cls, ip: str, port: int = LOCALSEND_PORT, timeout: float = 1.5) -> Optional[LocalSendDevice]:
         """Probes a device directly by IP and port via LocalSend REST API v2."""
+        opener = _get_opener()
+        reg_payload = json.dumps({
+            "alias": "QGIS LAN Drop",
+            "version": "2.1",
+            "deviceModel": "Desktop",
+            "deviceType": "desktop",
+            "fingerprint": "qgis-lan-drop",
+            "port": LOCALSEND_PORT,
+            "protocol": "https",
+            "download": False
+        }).encode('utf-8')
+
         for proto in ("https", "http"):
-            url = f"{proto}://{ip}:{port}/api/localsend/v2/info"
-            req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-LAN-Drop'})
+            # 1. Official modern LocalSend register endpoint
+            reg_url = f"{proto}://{ip}:{port}/api/localsend/v2/register"
+            reg_req = urllib.request.Request(
+                reg_url,
+                data=reg_payload,
+                headers={'Content-Type': 'application/json', 'User-Agent': 'LocalSend'}
+            )
             try:
-                with urllib.request.urlopen(req, timeout=timeout, context=_get_ssl_context()) as resp:
+                with opener.open(reg_req, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode('utf-8'))
-                        alias = data.get('alias', 'Unknown Device')
-                        model = data.get('deviceModel', '')
-                        dtype = data.get('deviceType', 'mobile')
-                        fingerprint = data.get('fingerprint', '')
                         return LocalSendDevice(
                             ip=ip,
                             port=port,
-                            alias=alias,
-                            device_model=model,
-                            device_type=dtype,
-                            fingerprint=fingerprint,
+                            alias=data.get('alias', 'Unknown Device'),
+                            device_model=data.get('deviceModel', ''),
+                            device_type=data.get('deviceType', 'mobile'),
+                            fingerprint=data.get('fingerprint', ''),
+                            https=(proto == "https")
+                        )
+            except Exception:
+                pass
+
+            # 2. Legacy fallback endpoint
+            info_url = f"{proto}://{ip}:{port}/api/localsend/v2/info"
+            info_req = urllib.request.Request(info_url, headers={'User-Agent': 'LocalSend'})
+            try:
+                with opener.open(info_req, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode('utf-8'))
+                        return LocalSendDevice(
+                            ip=ip,
+                            port=port,
+                            alias=data.get('alias', 'Unknown Device'),
+                            device_model=data.get('deviceModel', ''),
+                            device_type=data.get('deviceType', 'mobile'),
+                            fingerprint=data.get('fingerprint', ''),
                             https=(proto == "https")
                         )
             except Exception:
@@ -360,8 +400,10 @@ class LocalSendClient:
             method='POST'
         )
 
+        opener = _get_opener()
+
         try:
-            with urllib.request.urlopen(prepare_req, timeout=30, context=_get_ssl_context()) as resp:
+            with opener.open(prepare_req, timeout=30) as resp:
                 if resp.status != 200:
                     return False, f"手机端拒绝接收 (HTTP {resp.status})"
                 resp_data = json.loads(resp.read().decode('utf-8'))
@@ -426,7 +468,7 @@ class LocalSendClient:
                     },
                     method='POST'
                 )
-                with urllib.request.urlopen(upload_req, timeout=120, context=_get_ssl_context()) as resp:
+                with opener.open(upload_req, timeout=120) as resp:
                     if resp.status == 200:
                         return True, f"已成功推送到 {device.alias}！"
                     return False, f"上传异常: HTTP {resp.status}"

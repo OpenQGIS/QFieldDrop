@@ -13,7 +13,7 @@ from typing import Optional
 from qgis.core import QgsProject
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
-    QPushButton, QTabWidget, QProgressBar, QMessageBox
+    QPushButton, QTabWidget, QProgressBar, QMessageBox, QDialogButtonBox
 )
 from qgis.PyQt.QtCore import QTimer, Qt
 
@@ -181,7 +181,7 @@ class QFieldSendDialog(QDialog):
             port=self.port,
             parent=self
         )
-        self.tabs.addTab(self.tab_advanced, get_icon("settings"), "高阶通道")
+        self.tabs.addTab(self.tab_advanced, get_icon("settings"), "高阶传输通道")
 
         layout.addWidget(self.tabs, 1)
 
@@ -189,23 +189,24 @@ class QFieldSendDialog(QDialog):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setTextVisible(True)
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
 
-        # 4. Bottom Native Bar: Status on Left + Close Button on Right
+        # 4. Bottom Native Bar: Status on Left + QDialogButtonBox on Right
         bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 4, 0, 0)
 
         self.status_icon = QLabel()
-        self.status_icon.setPixmap(get_icon("globe").pixmap(16, 16))
+        self.status_icon.setPixmap(get_icon("info").pixmap(16, 16))
         bottom_row.addWidget(self.status_icon)
 
         self.status_box = QLabel(f"投送服务已就绪，正在监听局域网端口 :{self.port}")
         bottom_row.addWidget(self.status_box, 1)
 
-        btn_close = QPushButton("关闭")
-        btn_close.clicked.connect(self.close)
-        bottom_row.addWidget(btn_close)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        self.button_box.rejected.connect(self.close)
+        bottom_row.addWidget(self.button_box)
 
         layout.addLayout(bottom_row)
 

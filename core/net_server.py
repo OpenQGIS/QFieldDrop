@@ -482,8 +482,11 @@ class LanDropServer:
                 # Suppress stdout logging to prevent polluting QGIS console
                 pass
 
-        # Enable immediate address reuse across fast restarts
-        ThreadingHTTPServer.allow_reuse_address = True
+        # On Windows, setting allow_reuse_address=False ensures OSError is raised on port conflict so it advances to next port
+        if os.name == 'nt':
+            ThreadingHTTPServer.allow_reuse_address = False
+        else:
+            ThreadingHTTPServer.allow_reuse_address = True
 
         # Try to bind ports starting from self.port
         bound = False

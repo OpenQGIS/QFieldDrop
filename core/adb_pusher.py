@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import subprocess
 from typing import List, Tuple, Optional
+from qgis.PyQt.QtCore import QSettings
 
 from .packager import (
     EXCLUDED_DIR_NAMES,
@@ -24,10 +25,51 @@ class AdbPusher:
     TARGET_QFIELD_PATH = "/sdcard/Android/data/ch.opengis.qfield/files/QField"
     FALLBACK_QFIELD_PATH = "/sdcard/QField"
 
-    @staticmethod
-    def is_adb_available() -> bool:
-        """Check if adb executable is found in system PATH."""
-        return shutil.which("adb") is not None
+    @classmethod
+    def get_adb_path(cls) -> Optional[str]:
+        """Resolves the executable path of adb, checking custom settings, PATH, and common Windows SDK paths."""
+        try:
+            settings = QSettings("QFieldDrop", "ADB")
+            custom_path = settings.value("custom_adb_path", "")
+            if custom_path and os.path.isfile(custom_path):
+                return custom_path
+        except Exception:
+            pass
+
+        # Check system PATH
+        which_path = shutil.which("adb")
+        if which_path:
+            return which_path
+
+        # Check common Windows locations
+        if os.name == 'nt':
+            candidates = [
+                os.path.expandvars(r"%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"),
+                os.path.expandvars(r"%ProgramFiles%\Android\android-sdk\platform-tools\adb.exe"),
+                os.path.expandvars(r"%ProgramFiles(x86)%\Android\android-sdk\platform-tools\adb.exe"),
+                os.path.expandvars(r"C:\platform-tools\adb.exe"),
+                os.path.expandvars(r"D:\platform-tools\adb.exe"),
+                os.path.expandvars(r"C:\adb\adb.exe"),
+                os.path.expandvars(r"D:\adb\adb.exe"),
+                os.path.expandvars(r"%ProgramFiles%\leidian\ldplayer9\adb.exe"),
+                os.path.expandvars(r"D:\leidian\ldplayer9\adb.exe"),
+                os.path.expandvars(r"C:\leidian\ldplayer9\adb.exe"),
+            ]
+            for c in candidates:
+                if os.path.isfile(c):
+                    return c
+
+        return None
+
+    @classmethod
+    def set_custom_adb_path(cls, path: str):
+        settings = QSettings("QFieldDrop", "ADB")
+        settings.setValue("custom_adb_path", path)
+
+    @classmethod
+    def is_adb_available(cls) -> bool:
+        """Check if adb executable is found in system PATH or custom/common paths."""
+        return cls.get_adb_path() is not None
 
     @classmethod
     def list_devices(cls) -> List[Tuple[str, str]]:
@@ -35,12 +77,13 @@ class AdbPusher:
         List connected ADB devices (both USB and wireless).
         Returns list of (serial, status), e.g. [('192.168.1.105:5555', 'device')]
         """
-        if not cls.is_adb_available():
+        adb_bin = cls.get_adb_path()
+        if not adb_bin:
             return []
 
         try:
             res = subprocess.run(
-                ["adb", "devices"],
+                [adb_bin, "devices"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -60,12 +103,13 @@ class AdbPusher:
     @classmethod
     def connect_wireless(cls, ip_port: str) -> Tuple[bool, str]:
         """Connect to Android device over Wi-Fi (e.g. 192.168.1.105:5555)."""
-        if not cls.is_adb_available():
-            return False, "系统中未检测到 adb 命令，请先安装 Android Platform Tools。"
+        adb_bin = cls.get_adb_path()
+        if not adb_bin:
+            return False, "系统中未检测到 adb 命令，请先配置或安装 Android Platform Tools。"
 
         try:
             res = subprocess.run(
-                ["adb", "connect", ip_port],
+                [adb_bin, "connect", ip_port],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -116,10 +160,11 @@ class AdbPusher:
         """
         Pushes filtered project directory to QField sandbox.
         """
-        if not cls.is_adb_available():
-            return False, "系统中未安装 adb。"
+        adb_bin = cls.get_adb_path()
+        if not adb_bin:
+            return False, "系统中未检测到 adb 命令行工具。"
 
-        base_cmd = ["adb"]
+        base_cmd = [adb_bin]
         if device_serial:
             base_cmd.extend(["-s", device_serial])
 
@@ -130,7 +175,7 @@ class AdbPusher:
         try:
             stage_dir = cls._stage_clean_project_dir(src_dir)
 
-            # 1. Create target directory safely (escaped for remote shell)
+            # 1. Create target directory safely
             mkdir_cmd = base_cmd + ["shell", f"mkdir -p {quoted_remote}"]
             subprocess.run(
                 mkdir_cmd,
@@ -171,16 +216,16 @@ class AdbPusher:
         Pulls updated field project from Android QField sandbox to local directory.
         Returns: (success, message, saved_path)
         """
-        if not cls.is_adb_available():
-            return False, "系统中未检测到 adb 命令，请确保已安装 Android Platform Tools。", ""
+        adb_bin = cls.get_adb_path()
+        if not adb_bin:
+            return False, "系统中未检测到 adb 命令，请确保已安装或配置 Android Platform Tools。", ""
 
-        base_cmd = ["adb"]
+        base_cmd = [adb_bin]
         if device_serial:
             base_cmd.extend(["-s", device_serial])
 
         os.makedirs(local_dest_dir, exist_ok=True)
 
-        # Potential paths inside Android
         candidate_remotes = [
             f"{cls.TARGET_QFIELD_PATH}/{project_name}",
             f"{cls.FALLBACK_QFIELD_PATH}/{project_name}",
@@ -188,7 +233,6 @@ class AdbPusher:
             f"/sdcard/QField/Exported Projects/{project_name}.zip"
         ]
 
-        # Check which remote path exists (properly escaped for remote sh)
         found_remote = None
         for rpath in candidate_remotes:
             quoted_rpath = shlex.quote(rpath)
@@ -205,7 +249,6 @@ class AdbPusher:
                 continue
 
         if not found_remote:
-            # Fall back to primary target path
             found_remote = candidate_remotes[0]
 
         target_local = os.path.join(local_dest_dir, project_name)
@@ -236,13 +279,14 @@ class AdbPusher:
         """
         Installs QField companion plugin directly into QField's sandbox plugins folder.
         """
-        if not cls.is_adb_available():
+        adb_bin = cls.get_adb_path()
+        if not adb_bin:
             return False, "系统中未检测到 adb 命令，请确保已安装 Android Platform Tools。"
 
         if not os.path.exists(plugin_src_dir):
             return False, f"未找到插件源文件夹：{plugin_src_dir}"
 
-        base_cmd = ["adb"]
+        base_cmd = [adb_bin]
         if device_serial:
             base_cmd.extend(["-s", device_serial])
 
@@ -273,5 +317,3 @@ class AdbPusher:
             return False, f"写入手机失败: {err}"
         except Exception as e:
             return False, f"ADB 传输异常: {str(e)}"
-
-
