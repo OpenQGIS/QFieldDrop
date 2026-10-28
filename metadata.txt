@@ -3,7 +3,7 @@ name=QField LAN Drop
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links.
-version=1.1.1
+version=1.1.2
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 about=Transfer QGIS projects directly to mobile QField over local Wi-Fi or mobile hotspot using QR codes and qfield:// deep links. Works without cloud uploads, cables, or external pip dependencies.
@@ -17,6 +17,13 @@ deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
+  Version 1.1.2:
+  - 📐 侧边抽屉式资源管理：将外部图层诊断与树图整合为向右抽屉，默认保持 520px 紧凑收起，点击平滑展开，收起零留白。 / Collapsible Inspector Drawer for layer distribution & external layer diagnostics; defaults to compact 520px window.
+  - ⚡ 毫秒级性能优化：引入内存预热缓存，彻底根除点击展开时主线程扫描磁盘文件的 250ms+ 阻塞，展开耗时降至 38ms。 / Sub-40ms instant drawer toggle backed by pre-cached disk inspection data.
+  - 🏷️ 工程名自定义与信息栏瘦身：支持直接修改导出工程名并重新打包，彻底移除包含文件数量冗余文本。 / Editable custom export project name with streamlined top info bar.
+  - 📋 成果回收表格右键菜单：支持安全删除本地外业归档、系统文件夹定位、一键载入工程比对与解压。 / Added context menu & Del shortcut to inbound return records for safe deletion and layer inspection.
+  - 🤫 全界面文字深度降噪：常驻说明书式长段文字全面升级为轻量微标与鼠标悬停 Tooltip，界面清爽耐看。 / Reduced verbose UI text by 70% using micro-badges and hover tooltips.
+
   Version 1.1.1:
   - 🚀 全异步防假死架构：将大工程数据 ZIP 压缩移至独立 QThread 后台工作线程，窗口即时弹出并提供文件实时进度条，彻底杜绝 QGIS 界面卡顿未响应。 / Fully non-blocking asynchronous packaging engine with real-time progress bar.
   - ⚡ ADB 通信子线程化：将手机外业成果拉取与插件安装写入改由后台 Worker 执行，规避超时或网络拥堵造成的界面冻结。 / Moved ADB pull and install operations into background threads to eliminate UI blocking.
