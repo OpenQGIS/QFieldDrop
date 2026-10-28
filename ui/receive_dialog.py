@@ -18,14 +18,15 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer
 from qgis.PyQt.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox
+    QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox,
+    QTabWidget
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 
 from ..core.net_server import LanDropServer, NetworkHelper
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
-from .icon_helper import get_icon
+from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
 
@@ -36,7 +37,7 @@ class QFieldReceiveDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("QField 成果接收 - 手机外业回传 (Drop In)")
-        self.resize(680, 640)
+        self.resize(540, 500)
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -101,15 +102,26 @@ class QFieldReceiveDialog(QDialog):
 
         layout.addWidget(info_group)
 
-        # 2. Dual Channels Row: Left QR Web Upload + Right ADB Direct Pull
-        channels_box = QHBoxLayout()
+        # 2. Native QTabWidget for Inbound Channels
+        self.tabs = QTabWidget()
 
-        # Left: Mobile Scan Return
-        group_web = QGroupBox("手机扫码回传")
-        web_layout = QVBoxLayout(group_web)
-        web_layout.setAlignment(ALIGN_CENTER)
-        web_layout.setContentsMargins(9, 8, 9, 8)
-        web_layout.setSpacing(6)
+        # Tab 1: Mobile Scan & QField LAN Return (Two-Column Layout)
+        tab_web = QWidget()
+        web_layout = QHBoxLayout(tab_web)
+        web_layout.setContentsMargins(10, 10, 10, 10)
+        web_layout.setSpacing(14)
+
+        # Left Column: QR Code Image
+        self.qr_label = QLabel()
+        self.qr_label.setFixedSize(150, 150)
+        self.qr_label.setAlignment(ALIGN_CENTER)
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
+        web_layout.addWidget(self.qr_label, 0, Qt.AlignVCenter)
+
+        # Right Column: Network selector + Tip + URL + Copy Button
+        right_col = QVBoxLayout()
+        right_col.setSpacing(6)
+        right_col.setAlignment(Qt.AlignVCenter)
 
         # IP Selection Row
         ip_row = QHBoxLayout()
@@ -120,40 +132,34 @@ class QFieldReceiveDialog(QDialog):
             self.ip_combo.addItem(item['label'], item['ip'])
         self.ip_combo.currentIndexChanged.connect(self._update_qr)
         ip_row.addWidget(self.ip_combo, 1)
-        web_layout.addLayout(ip_row)
+        right_col.addLayout(ip_row)
 
-        self.qr_label = QLabel()
-        self.qr_label.setFixedSize(160, 160)
-        self.qr_label.setAlignment(ALIGN_CENTER)
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
-        web_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
-
-        qr_tip = QLabel("手机相机直接扫码，在网页选择成果文件即可极速上传")
-        qr_tip.setAlignment(ALIGN_CENTER)
+        qr_tip = QLabel("手机相机直接扫码，在网页选择成果极速上传；或在手机 QField 中一键回传。")
+        qr_tip.setWordWrap(True)
         tip_f = qr_tip.font()
         tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
         qr_tip.setFont(tip_f)
-        web_layout.addWidget(qr_tip)
+        right_col.addWidget(qr_tip)
 
         self.url_label = QLabel()
-        self.url_label.setAlignment(ALIGN_CENTER)
         url_f = self.url_label.font()
         url_f.setPointSize(max(8, url_f.pointSize() - 1))
         self.url_label.setFont(url_f)
-        web_layout.addWidget(self.url_label)
+        right_col.addWidget(self.url_label)
 
         btn_copy_upload = QPushButton("复制回传网址")
         btn_copy_upload.setIcon(get_icon("copy"))
         btn_copy_upload.clicked.connect(self._copy_upload_url)
-        web_layout.addWidget(btn_copy_upload)
+        right_col.addWidget(btn_copy_upload)
 
-        channels_box.addWidget(group_web, 1)
+        web_layout.addLayout(right_col, 1)
+        self.tabs.addTab(tab_web, get_icon("qr"), "无线扫码 / QField 直传")
 
-        # Right: Android ADB Pull
-        group_adb = QGroupBox("Android ADB 拉取")
-        adb_layout = QVBoxLayout(group_adb)
-        adb_layout.setContentsMargins(9, 8, 9, 8)
-        adb_layout.setSpacing(6)
+        # Tab 2: Android ADB Pull
+        tab_adb = QWidget()
+        adb_layout = QVBoxLayout(tab_adb)
+        adb_layout.setContentsMargins(12, 10, 12, 10)
+        adb_layout.setSpacing(8)
 
         adb_desc = QLabel(
             "通过 USB 或无线调试连接的 Android 手机，免打开网页，直接穿透系统沙盒将 QField 最新工程与照片拉回电脑："
@@ -184,9 +190,9 @@ class QFieldReceiveDialog(QDialog):
         adb_layout.addWidget(self.btn_pull)
 
         adb_layout.addStretch()
-        channels_box.addWidget(group_adb, 1)
+        self.tabs.addTab(tab_adb, get_icon("zap"), "Android ADB 拉取")
 
-        layout.addLayout(channels_box)
+        layout.addWidget(self.tabs)
 
         # 3. Received Archives Table & Management
         group_records = QGroupBox("外业成果归档记录")
@@ -256,8 +262,9 @@ class QFieldReceiveDialog(QDialog):
         self.current_upload_url = f"http://{ip}:{self.port}/upload"
         if hasattr(self, 'url_label'):
             self.url_label.setText(self.current_upload_url)
-        matrix = generate_qr_matrix(self.current_upload_url, ecc='M')
-        pixmap = render_qr_to_qpixmap(matrix, target_size=150, border_modules=2)
+        matrix = generate_qr_matrix(self.current_upload_url, ecc='Q')
+        icon_path = get_icon_path("DropIn")
+        pixmap = render_qr_to_qpixmap(matrix, target_size=140, margin_px=6, icon_path=icon_path)
         if pixmap and hasattr(self, 'qr_label'):
             self.qr_label.setPixmap(pixmap)
 

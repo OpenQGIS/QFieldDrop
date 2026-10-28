@@ -1,10 +1,13 @@
-import QtQuick 2.14
-import QtQuick.Controls 2.14
-import QtQuick.Layouts 1.14
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import org.qfield
+import org.qgis
+import Theme
 
 Item {
     id: root
-    visible: false
+    property var mainWindow: typeof iface !== "undefined" && iface ? iface.mainWindow() : null
 
     // QField Application Plugin Lifecycle
     Component.onCompleted: {
@@ -22,15 +25,17 @@ Item {
         }
     }
 
-    // Toolbar Action Button in QField
-    ToolButton {
+    // Toolbar Action Button in QField (Using QField native QfToolButton)
+    QfToolButton {
         id: dropBtn
-        icon.source: Qt.resolvedUrl("icon.svg")
-        text: qsTr("回传电脑")
-        tooltip: qsTr("通过局域网将当前成果直接回传至电脑端 QGIS")
-        display: AbstractButton.IconOnly
+        bgcolor: Theme.darkGray
+        iconSource: Qt.resolvedUrl("icon.svg")
+        round: true
 
         onClicked: {
+            if (!returnDialog.parent && mainWindow) {
+                returnDialog.parent = mainWindow.contentItem
+            }
             returnDialog.open()
             detectLocalDesktop()
         }
@@ -39,12 +44,12 @@ Item {
     // Return Modal Dialog
     Dialog {
         id: returnDialog
+        parent: mainWindow ? mainWindow.contentItem : null
+        anchors.centerIn: parent
         title: qsTr("QFieldDrop - 局域网成果回传")
         modal: true
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width * 0.92 : 420, 480)
-        x: parent ? (parent.width - width) / 2 : 20
-        y: parent ? (parent.height - height) / 2 : 40
 
         contentItem: ColumnLayout {
             spacing: 12
@@ -65,20 +70,22 @@ Item {
                 Layout.fillWidth: true
 
                 ColumnLayout {
-                    spacing: 8
+                    spacing: 12
                     width: parent.width
 
                     RadioButton {
                         id: rbIncremental
-                        text: qsTr("增量回传 (推荐)")
+                        Layout.fillWidth: true
                         checked: true
-                        font.bold: true
+                        leftPadding: 32
 
                         contentItem: ColumnLayout {
-                            spacing: 2
+                            spacing: 3
+
                             Label {
                                 text: qsTr("增量成果 (仅修改图层 + 现场照片)")
                                 font.bold: true
+                                font.pixelSize: 13
                                 color: "#0F172A"
                             }
                             Label {
@@ -86,19 +93,24 @@ Item {
                                 color: "#64748B"
                                 font.pixelSize: 11
                                 wrapMode: Text.Wrap
+                                Layout.fillWidth: true
                             }
                         }
                     }
 
                     RadioButton {
                         id: rbFull
+                        Layout.fillWidth: true
                         checked: false
+                        leftPadding: 32
 
                         contentItem: ColumnLayout {
-                            spacing: 2
+                            spacing: 3
+
                             Label {
                                 text: qsTr("整包工程 (当前完整项目目录)")
                                 font.bold: true
+                                font.pixelSize: 13
                                 color: "#0F172A"
                             }
                             Label {
@@ -106,6 +118,7 @@ Item {
                                 color: "#64748B"
                                 font.pixelSize: 11
                                 wrapMode: Text.Wrap
+                                Layout.fillWidth: true
                             }
                         }
                     }
@@ -281,7 +294,7 @@ Item {
 
         // Send payload: either simulated test chunk or layer bundle
         // In full mobile QField environment, local layer streams are piped here
-        var dummyData = new Blob([new ArrayBuffer(1024 * 16)], { type: "application/octet-stream" })
+        var dummyData = new ArrayBuffer(1024 * 16)
         xhr.send(dummyData)
     }
 }

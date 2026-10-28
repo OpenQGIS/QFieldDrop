@@ -15,6 +15,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal, QSettings
 
 from ..core.localsend import LocalSendDiscovery, LocalSendClient, LocalSendDevice
+from ..core.net_server import NetworkHelper
 from .icon_helper import get_icon
 
 
@@ -88,6 +89,15 @@ class LocalSendTab(QWidget):
         header_row.addWidget(QLabel("目标手机设备:"))
         header_row.addStretch()
 
+        # If VPN / proxy TUN is detected, show a clickable alert button instead of plain text
+        local_ips = NetworkHelper.get_all_local_ip_set()
+        if any(NetworkHelper.is_virtual_or_proxy(ip) for ip in local_ips):
+            self.btn_vpn_warn = QPushButton("代理/VPN提示")
+            self.btn_vpn_warn.setIcon(get_icon("alert-triangle"))
+            self.btn_vpn_warn.setToolTip("检测到电脑开启了代理/VPN（如 Clash TUN 模式），点击查看排查建议")
+            self.btn_vpn_warn.clicked.connect(self._show_vpn_hint)
+            header_row.addWidget(self.btn_vpn_warn)
+
         self.btn_refresh = QPushButton("刷新")
         self.btn_refresh.setIcon(get_icon("refresh"))
         self.btn_refresh.clicked.connect(self.start_scan)
@@ -97,6 +107,7 @@ class LocalSendTab(QWidget):
         # Device List Widget
         self.device_list = QListWidget()
         self.device_list.setAlternatingRowColors(True)
+        self.device_list.setMaximumHeight(120)
         self.device_list.itemSelectionChanged.connect(self._on_device_selected)
         group_layout.addWidget(self.device_list)
 
@@ -151,6 +162,17 @@ class LocalSendTab(QWidget):
         manual_layout.addWidget(self.btn_manual_connect)
 
         layout.addWidget(manual_group)
+
+    def _show_vpn_hint(self):
+        QMessageBox.information(
+            self,
+            "网络环境与排查提示",
+            "【代理 / VPN 环境提示】\n\n"
+            "检测到当前电脑开启了代理/VPN 软件（如 Clash TUN 模式）：\n\n"
+            "1. 代理软件的 TUN 虚拟网卡会拦截系统局域网广播，可能导致手机与电脑互扫不到；\n"
+            "2. 若搜不到设备，建议在传输时【临时退出或关闭 TUN 模式】；\n"
+            "3. 若仍无法自动发现，建议【手机开个人热点，电脑连手机】，或在下方直接使用【手机 IP 手动直连】。"
+        )
 
     def update_package(self, zip_path: str, zip_filename: str):
         self.zip_path = zip_path

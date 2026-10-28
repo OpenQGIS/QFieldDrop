@@ -1,19 +1,43 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 *.pyd
-*.pyo
 
-# Packaging & Returns
+# Packaging, Dist & History
 _qfield_return/
 *.zip
+*.tar.gz
+dist/
+build/
+*.egg-info/
+*-4QGIS/
+*_History/
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# QGIS temporary & autosave
 *.qgz~
 *.qgs~
+*.gpkg-shm
+*.gpkg-wal
 
-# IDE & OS
-.vscode/
+# Environments & IDE
+.env
+.venv
+env/
+venv/
 .idea/
+.vscode/
 *.swp
 *.swo
+
+# OS specific
 .DS_Store
 Thumbs.db
+desktop.ini

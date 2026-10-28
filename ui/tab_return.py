@@ -25,7 +25,7 @@ from qgis.PyQt.QtCore import Qt, pyqtSignal
 
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
-from .icon_helper import get_icon
+from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
 
@@ -166,8 +166,9 @@ class ReturnTab(QWidget):
     def _update_qr(self):
         ip = self.get_local_ip_cb()
         self.current_upload_url = f"http://{ip}:{self.port}/upload"
-        matrix = generate_qr_matrix(self.current_upload_url, ecc='M')
-        pixmap = render_qr_to_qpixmap(matrix, target_size=150, border_modules=2)
+        matrix = generate_qr_matrix(self.current_upload_url, ecc='Q')
+        icon_path = get_icon_path("DropIn")
+        pixmap = render_qr_to_qpixmap(matrix, target_size=150, margin_px=6, icon_path=icon_path)
         if pixmap:
             self.qr_label.setPixmap(pixmap)
 

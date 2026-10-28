@@ -20,16 +20,28 @@ from qgis.PyQt.QtCore import QObject, pyqtSignal
 
 class NetworkHelper:
     @staticmethod
-    def classify_ip(ip: str) -> str:
+    def is_virtual_or_proxy(ip: str) -> bool:
+        """Check if an IP address belongs to virtual machines or proxy/VPN (TUN/TAP)."""
+        return (
+            ip.startswith("28.")            # FlClash / Mihomo / Clash TUN default IP
+            or ip.startswith("198.18.")     # Clash / FakeIP range
+            or ip.startswith("198.19.")
+            or ip.startswith("172.17.")     # Docker default bridge
+            or ip.startswith("172.18.")
+            or ip.startswith("192.168.56.") # VirtualBox Host-Only
+        )
+
+    @classmethod
+    def classify_ip(cls, ip: str) -> str:
         """Classify IP for friendly display in dropdown."""
         if ip.startswith("192.168.43."):
             return "Android 手机热点"
         elif ip.startswith("172.20.10."):
             return "iOS / iPhone 热点"
         elif ip.startswith("192.168.56.") or ip.startswith("172.17.") or ip.startswith("172.18."):
-            return "虚拟网卡 (VM/Docker)"
-        elif ip.startswith("198.18.") or ip.startswith("198.19."):
-            return "代理 / VPN 虚拟网卡"
+            return "虚拟机网卡 (VM/Docker)"
+        elif ip.startswith("28.") or ip.startswith("198.18.") or ip.startswith("198.19."):
+            return "代理 / VPN 虚拟网卡 (Clash/TUN，不可连)"
         elif ip.startswith("192.168."):
             return "局域网 Wi-Fi / 有线"
         elif ip.startswith("10."):
@@ -40,6 +52,18 @@ class NetworkHelper:
                 return "局域网热点 / 内网"
             return "局域网地址"
         return "局域网 IPv4"
+
+    @classmethod
+    def get_all_local_ip_set(cls) -> set:
+        """Returns all IPv4 addresses belonging to the local machine."""
+        ips = {"127.0.0.1", "localhost", "28.0.0.1"}
+        try:
+            hostname = socket.gethostname()
+            for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+                ips.add(info[4][0])
+        except Exception:
+            pass
+        return ips
 
     @classmethod
     def get_all_lan_ips(cls):
@@ -93,22 +117,25 @@ class NetworkHelper:
         # 4. Others
         # 5. Virtual / Proxies (198.18.x, 172.17.x, 192.168.56.x)
         def ip_sort_key(ip):
+            if cls.is_virtual_or_proxy(ip):
+                return 99
             if ip.startswith("192.168.43.") or ip.startswith("172.20.10."):
                 return 0
-            if ip.startswith("198.18.") or ip.startswith("172.17.") or ip.startswith("192.168.56."):
-                return 9
             if is_private_ip(ip):
-                return 1 if ip == primary_ip else 2
-            if ip == primary_ip:
+                return 1 if (ip == primary_ip and not cls.is_virtual_or_proxy(primary_ip)) else 2
+            if ip == primary_ip and not cls.is_virtual_or_proxy(primary_ip):
                 return 3
             return 5
 
         sorted_ips = sorted(ips, key=ip_sort_key)
 
         result = []
+        best_ip = sorted_ips[0] if sorted_ips else None
         for ip in sorted_ips:
             desc = cls.classify_ip(ip)
-            if ip == primary_ip:
+            if ip == best_ip and not cls.is_virtual_or_proxy(ip):
+                label = f"{ip} ({desc}) ★ 推荐局域网"
+            elif ip == primary_ip and not cls.is_virtual_or_proxy(ip):
                 label = f"{ip} ({desc}) ★ 默认出口"
             else:
                 label = f"{ip} ({desc})"

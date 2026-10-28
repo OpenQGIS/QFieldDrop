@@ -34,7 +34,7 @@ class QFieldSendDialog(QDialog):
         super().__init__(parent)
         self.initial_tab = initial_tab
         self.setWindowTitle("QField 局域网直传 - 投送至手机 (Drop Out)")
-        self.resize(560, 600)
+        self.resize(520, 360)
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -198,6 +198,7 @@ class QFieldSendDialog(QDialog):
         bottom_row.addWidget(self.button_box)
 
         layout.addLayout(bottom_row)
+        self.adjustSize()
 
     def _on_ip_changed(self, ip: str):
         if self.mdns:

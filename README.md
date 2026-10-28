@@ -1,5 +1,18 @@
 # QField LAN Drop (QField 局域网极速离线双向直传)
 
+<p align="left">
+  <img src="https://img.shields.io/badge/status-pending%20approval-orange?style=flat&logo=clockify&logoColor=white" alt="Status: Pending Approval">
+  <img src="https://img.shields.io/badge/QGIS-3.0%2B-blue?style=flat&logo=qgis&logoColor=white" alt="QGIS 3.0+">
+  <img src="https://img.shields.io/badge/QField-2.0%2B%20%7C%203.0%2B-brightgreen?style=flat&logo=android&logoColor=white" alt="QField 2.0+ | 3.0+">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat" alt="MIT License">
+</p>
+
+> ⏳ **项目状态说明 (Project Status)**：  
+> - **QGIS Plugin 状态**：`Under Review / In Active Development`（本插件处于持续活跃迭代开发中，**v1.0.1 纯净正式包与手机端伴侣插件已就绪**）。  
+> - **QGIS Version 兼容范围**：`≥ 3.0`（实测覆盖 QGIS 3.0 ~ 3.40 LTR，并已通过 Qt6 / QGIS 4.x Scoped Enum 兼容桥接）。  
+> 
+> 在官方插件库正式审核上线前，用户可直接前往 [Releases 页面](https://github.com/OpenQGIS/QFieldDrop/releases) 下载最新 ZIP 安装包，在 QGIS 菜单栏选择 **【插件】➔【管理并安装插件】➔【从 ZIP 文件安装】** 即插即用。
+
 > 专为外业 GIS 打造的轻量级闭环工具：**一键快速打包分发（电脑 $\rightarrow$ 手机） + 一键外业成果回传（手机 $\rightarrow$ 电脑）**。  
 > 告别重型云同步服务器与 MTP 数据线翻找沙盒文件的痛点，100% 局域网离线秒级直连。
 
@@ -82,3 +95,35 @@ QFieldDrop/
 3. **方式 B（Android ADB 一键拉取）**：
    - 电脑端直接点击「📥 一键拉回手机外业成果 (ADB)」按钮；
    - 自动穿透 Android 11+ 沙盒保护，将更新后的工程目录瞬间拉取到电脑。
+
+---
+
+## 🗺️ 路线图与规划 (Roadmap)
+
+本项目当前处于 **v1.1.0 迭代周期**，正在推进 **移动热点自愈** 与 **外业成果差异变动比对**。
+
+```mermaid
+gantt
+    title QField LAN Drop 研发路线一览
+    dateFormat  YYYY-MM-DD
+    axisFormat  %m/%d
+    todayMarker stroke-width:2px,stroke:#2563EB,opacity:0.8
+
+    section v1.0.1 稳定版 (已发布)
+    双动作解耦与LocalSend协议支持   :done,    t1, 2026-10-27, 2026-10-28
+    v1.0.1 协议增强版发布          :milestone, m1, 2026-10-28, 0d
+
+    section v1.1.0 当前迭代 (进行中)
+    移动热点自愈与多网卡智能优选   :active,  t2, 2026-10-28, 2026-11-04
+    外业回传差异比对与成果台账     :active,  t3, 2026-10-29, 2026-11-08
+    v1.1.0 发布                   :milestone, m2, 2026-11-13, 0d
+```
+
+👉 查看详细开发排期、特性矩阵与任务清单：[详细路线图 (ROADMAP.md)](ROADMAP.md)
+
+---
+
+## 📄 开源许可 (License)
+
+本项目基于 [MIT License](LICENSE) 开源发布。欢迎提交 Issue 与 Pull Request 共同完善！
+

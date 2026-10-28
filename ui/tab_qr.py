@@ -15,7 +15,7 @@ from qgis.gui import QgsCollapsibleGroupBox
 
 from ..core.net_server import NetworkHelper
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
-from .icon_helper import get_icon
+from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
 
@@ -38,25 +38,25 @@ class QrDropTab(QWidget):
         layout.setSpacing(6)
         layout.setContentsMargins(8, 8, 8, 8)
 
-        # 1. Main QR Code GroupBox
+        # 1. Main QR Code GroupBox (Two-Column Layout)
         qr_group = QGroupBox("手机扫码快速导入工程")
-        qr_layout = QVBoxLayout(qr_group)
-        qr_layout.setAlignment(ALIGN_CENTER)
-        qr_layout.setContentsMargins(9, 8, 9, 8)
-        qr_layout.setSpacing(6)
+        qr_layout = QHBoxLayout(qr_group)
+        qr_layout.setContentsMargins(10, 10, 10, 10)
+        qr_layout.setSpacing(14)
 
+        # Left Column: QR Code (compact, tight quiet zone)
         self.qr_label = QLabel()
-        self.qr_label.setFixedSize(210, 210)
+        self.qr_label.setFixedSize(160, 160)
         self.qr_label.setAlignment(ALIGN_CENTER)
-        # High optical contrast for camera scanning with palette-aware border
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
-        qr_layout.addWidget(self.qr_label, 0, ALIGN_CENTER)
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid); border-radius: 4px;")
+        qr_layout.addWidget(self.qr_label, 0, Qt.AlignVCenter)
 
-        # Mode Selection Radio Buttons directly under QR
-        mode_box = QHBoxLayout()
-        mode_box.setAlignment(ALIGN_CENTER)
+        # Right Column: Mode options + Instructions + Actions
+        right_col = QVBoxLayout()
+        right_col.setSpacing(8)
+        right_col.setAlignment(Qt.AlignVCenter)
+
         self.btn_group = QButtonGroup(self)
-
         self.rb_deeplink = QRadioButton("系统相机直达唤醒 (推荐)")
         self.rb_deeplink.setChecked(True)
         self.rb_deeplink.setToolTip("手机自带系统相机直接扫码，自动唤醒 QField 并弹出工程导入对话框")
@@ -69,45 +69,44 @@ class QrDropTab(QWidget):
         self.rb_deeplink.toggled.connect(self._update_urls_and_qr)
         self.rb_http.toggled.connect(self._update_urls_and_qr)
 
-        mode_box.addWidget(self.rb_deeplink)
-        mode_box.addSpacing(16)
-        mode_box.addWidget(self.rb_http)
-        qr_layout.addLayout(mode_box)
+        right_col.addWidget(self.rb_deeplink)
+        right_col.addWidget(self.rb_http)
 
         self.scan_tip = QLabel("提示：使用手机自带相机扫码，直接唤醒 QField 并弹出导入确认")
-        self.scan_tip.setAlignment(ALIGN_CENTER)
+        self.scan_tip.setWordWrap(True)
         tip_font = self.scan_tip.font()
         tip_font.setPointSize(max(8, tip_font.pointSize() - 1))
         self.scan_tip.setFont(tip_font)
-        qr_layout.addWidget(self.scan_tip)
+        right_col.addWidget(self.scan_tip)
 
-        # Action Buttons directly inside or under QR card
         act_row = QHBoxLayout()
-        act_row.setAlignment(ALIGN_CENTER)
+        act_row.setSpacing(8)
 
         btn_copy_link = QPushButton("复制链接")
         btn_copy_link.setIcon(get_icon("link"))
         btn_copy_link.clicked.connect(self._copy_link_auto)
         act_row.addWidget(btn_copy_link)
 
-        btn_browser = QPushButton("在默认浏览器中测试下载")
+        btn_browser = QPushButton("测试下载")
         btn_browser.setIcon(get_icon("globe"))
+        btn_browser.setToolTip("在默认浏览器中测试下载此工程包")
         btn_browser.clicked.connect(self._open_in_browser)
         act_row.addWidget(btn_browser)
 
-        qr_layout.addLayout(act_row)
+        right_col.addLayout(act_row)
+        qr_layout.addLayout(right_col, 1)
+
         layout.addWidget(qr_group)
 
-        # 2. Progressive Disclosure: Native QgsCollapsibleGroupBox
-        self.adv_group = QgsCollapsibleGroupBox("高级网络设置")
-        self.adv_group.setCollapsed(True)
-        adv_layout = QVBoxLayout(self.adv_group)
-        adv_layout.setSpacing(6)
-        adv_layout.setContentsMargins(9, 8, 9, 8)
+        # 2. Network Adapter & LAN Configuration GroupBox
+        net_group = QGroupBox("局域网与网卡配置")
+        net_layout = QVBoxLayout(net_group)
+        net_layout.setSpacing(6)
+        net_layout.setContentsMargins(10, 8, 10, 8)
 
         # IP Selector Row
         ip_row = QHBoxLayout()
-        ip_row.addWidget(QLabel("选择投送 IP:"))
+        ip_row.addWidget(QLabel("投送网卡:"))
         self.ip_combo = QComboBox()
         self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         for item in NetworkHelper.get_all_lan_ips():
@@ -115,18 +114,21 @@ class QrDropTab(QWidget):
         self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
         ip_row.addWidget(self.ip_combo, 1)
 
-        btn_firewall = QPushButton("防火墙配置命令")
+        btn_firewall = QPushButton("防火墙配置")
         btn_firewall.setIcon(get_icon("shield"))
         btn_firewall.setToolTip("复制 Windows 高级防火墙端口放行命令")
         btn_firewall.clicked.connect(self._copy_firewall_cmd)
         ip_row.addWidget(btn_firewall)
-        adv_layout.addLayout(ip_row)
+        net_layout.addLayout(ip_row)
 
-        self.mdns_lbl = QLabel(f"局域网通用域名: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
-        adv_layout.addWidget(self.mdns_lbl)
+        self.mdns_lbl = QLabel(f"局域网通用地址: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+        self.mdns_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        tip_f = self.mdns_lbl.font()
+        tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
+        self.mdns_lbl.setFont(tip_f)
+        net_layout.addWidget(self.mdns_lbl)
 
-        layout.addWidget(self.adv_group)
-        layout.addStretch()
+        layout.addWidget(net_group)
 
     def _open_in_browser(self):
         import webbrowser
@@ -168,8 +170,9 @@ class QrDropTab(QWidget):
         else:
             self.scan_tip.setText("提示：扫码下载 ZIP 压缩包 ➔ 打开 QField ➔ 点击右下角【➕】➔ 选择【从 ZIP 导入工程】")
 
-        matrix = generate_qr_matrix(active_url, ecc='M')
-        pixmap = render_qr_to_qpixmap(matrix, target_size=190, border_modules=2)
+        matrix = generate_qr_matrix(active_url, ecc='Q')
+        icon_path = get_icon_path("DropOut")
+        pixmap = render_qr_to_qpixmap(matrix, target_size=160, margin_px=6, icon_path=icon_path)
         if pixmap:
             self.qr_label.setPixmap(pixmap)
 

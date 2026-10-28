@@ -28,25 +28,29 @@ _QGIS_THEME_ICONS = {
 
 
 def get_icon(name: str) -> QIcon:
-    """Load native QGIS theme QIcon or fallback to bundled SVG."""
+    """Load bundled SVG icon from icons/ first, fallback to icon/ or QGIS theme."""
+    svg_name = f"{name}.svg" if not name.endswith(".svg") else name
     clean_name = name.lower().replace(".svg", "")
 
-    # 1. Prefer native QGIS theme icon if mapped
+    # 1. 优先读取用户升级的 icons/ 目录
+    p1 = os.path.join(_ICONS_DIR, svg_name)
+    if os.path.exists(p1):
+        icon = QIcon(p1)
+        if not icon.isNull():
+            return icon
+
+    # 2. 其次读取 bundled icon/ 目录
+    p2 = os.path.join(_MAIN_ICON_DIR, svg_name)
+    if os.path.exists(p2):
+        icon = QIcon(p2)
+        if not icon.isNull():
+            return icon
+
+    # 3. 降级回退到 QGIS 原生主题图标
     if clean_name in _QGIS_THEME_ICONS:
         qgis_icon = QgsApplication.getThemeIcon(_QGIS_THEME_ICONS[clean_name])
         if not qgis_icon.isNull():
             return qgis_icon
-
-    # 2. Check bundled icons/
-    svg_name = f"{name}.svg" if not name.endswith(".svg") else name
-    p1 = os.path.join(_ICONS_DIR, svg_name)
-    if os.path.exists(p1):
-        return QIcon(p1)
-
-    # 3. Check bundled icon/
-    p2 = os.path.join(_MAIN_ICON_DIR, svg_name)
-    if os.path.exists(p2):
-        return QIcon(p2)
 
     return QIcon()
 

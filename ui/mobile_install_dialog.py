@@ -24,7 +24,7 @@ from qgis.PyQt.QtCore import Qt
 from ..core.net_server import NetworkHelper, LanDropServer
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
-from .icon_helper import get_icon
+from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
 
@@ -174,8 +174,9 @@ class MobileInstallDialog(QDialog):
 
         # Note: In QField, plugins are installed via clean HTTP URL!
         # Scanning from QField's "Install from URL" QR scanner directly parses this download URL.
-        matrix = generate_qr_matrix(download_url, ecc='M')
-        pixmap = render_qr_to_qpixmap(matrix, target_size=170, border_modules=2)
+        matrix = generate_qr_matrix(download_url, ecc='Q')
+        icon_path = get_icon_path("MobileSetup")
+        pixmap = render_qr_to_qpixmap(matrix, target_size=170, margin_px=6, icon_path=icon_path)
         if pixmap:
             self.qr_label.setPixmap(pixmap)
 

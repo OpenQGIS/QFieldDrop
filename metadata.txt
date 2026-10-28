@@ -1,11 +1,13 @@
 [general]
 name=QField LAN Drop
 qgisMinimumVersion=3.0
+qgisMaximumVersion=3.99
 description=Zero-config instant LAN/Hotspot direct transfer of QGIS projects to QField via QR code & Deep Link.
-version=1.0.0
+version=1.0.1
 author=OpenQGIS
-email=dev@openqgis.org
+email=OpenQGIS@outlook.com
 about=Directly transfer QGIS projects to mobile QField over local Wi-Fi or mobile hotspot using QR code and qfield:// deep link. Zero cloud upload, no MTP cables, and zero external pip dependencies.
+homepage=https://github.com/OpenQGIS/QFieldDrop
 tracker=https://github.com/OpenQGIS/QFieldDrop/issues
 repository=https://github.com/OpenQGIS/QFieldDrop
 hasProcessingProvider=no
@@ -13,4 +15,12 @@ category=Plugins
 experimental=False
 deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
-icon=icon.svg
+icon=icon/QFieldDrop_logo.svg
+changelog=
+  Version 1.0.1:
+  - 🛠️ 工具栏双动作拆解：将出工投送与收工回传拆分为独立动作，收工回传实现秒级直开。 / Split toolbar into Outbound Dispatch and Inbound Return actions; return dialog opens in milliseconds without repackaging.
+  - 📱 手机助手安装器：新增 QField 伴侣插件安装对话框，支持扫码安装、URL唤醒、ADB静默写入与离线包导出。 / Added mobile companion installer dialog supporting QR install, deep link, ADB push, and offline ZIP.
+  - ⚡ LocalSend 协议支持：集成 LocalSend v2 局域网组播发现与一键免扫码直推。 / Integrated LocalSend v2 multicast discovery and one-click direct transfer.
+  - 📥 移动端回传优化：移动端回传页面支持多文件、照片与工程压缩包批量回传。 / Enhanced mobile upload page to support batch upload of projects, GPKG, and photos.
+  Version 1.0.0:
+  - ✨ 基础局域网直传：支持二维码直接唤醒 QField 导入工程，内置轻量 HTTP 流式分发服务。 / Initial release of zero-config LAN transfer with QR code QField deep link and embedded HTTP server.

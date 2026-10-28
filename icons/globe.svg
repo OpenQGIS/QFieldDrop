@@ -1,4 +1,142 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-  <circle cx="12" cy="12" r="10"/>
-  <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>
-</svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   sodipodi:docname="0_icons_Component.svg"
+   inkscape:export-batch-name=""
+   inkscape:export-batch-path="C:\Users\tesla\AppData\Roaming\QGIS\QGIS3\profiles\ForTest\python\plugins\QFieldDrop\icons"
+   xml:space="preserve"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+   id="namedview1"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="true"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:document-units="px"
+   inkscape:zoom="16"
+   inkscape:cx="629.74998"
+   inkscape:cy="9.9062498"
+   inkscape:window-width="1920"
+   inkscape:window-height="1001"
+   inkscape:window-x="-9"
+   inkscape:window-y="41"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="g3">
+    
+    
+    
+    
+    
+    
+    <inkscape:page
+   x="0"
+   y="0"
+   width="24"
+   height="24"
+   id="page_globe"
+   margin="0"
+   bleed="0"
+   inkscape:label="globe" />
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  </sodipodi:namedview>
+  <defs
+   id="defs1"><!-- Big icon gradients & filters --></defs>
+  <g
+   inkscape:label="Icons"
+   inkscape:groupmode="layer"
+   id="layer1"
+   transform="translate(-204)">
+    <!-- Page: alert-triangle (x=0) -->
+    
+    <!-- Page: archive (x=34) -->
+    
+    <!-- Page: copy (x=68) -->
+    
+    <!-- Page: download (x=102) -->
+    
+    <!-- Page: file (x=136) -->
+    
+    <!-- Page: folder (x=170) -->
+    
+    <!-- Page: globe (x=204) -->
+    <g
+   id="g_globe"
+   inkscape:label="globe"
+   transform="translate(204)"
+   fill="none"
+   stroke="#475569"
+   stroke-width="2"
+   stroke-linecap="square"
+   stroke-linejoin="miter"
+   style="stroke-linecap:round">
+      <circle
+   cx="12"
+   cy="12"
+   r="10"
+   id="circle12"
+   style="stroke-linecap:round" />
+      <path
+   d="M 2,12 H 22 M 12,2 a 15,15 0 0 1 0,20 M 12,2 a 15,15 0 0 0 0,20"
+   id="path13"
+   style="stroke-linecap:round" />
+    </g>
+    <!-- Page: laptop (x=238) -->
+    
+    <!-- Page: link (x=272) -->
+    
+    <!-- Page: package (x=306) -->
+    
+    <!-- Page: qr (x=340) -->
+    
+    <!-- Page: radio (x=374) -->
+    
+    <!-- Page: refresh (x=408) -->
+    
+    <!-- Page: search (x=442) -->
+    
+    <!-- Page: settings (x=476) -->
+    
+    <!-- Page: shield (x=510) -->
+    
+    <!-- Page: smartphone (x=544) -->
+    
+    <!-- Page: zap (x=578) -->
+    
+    <!-- Page: icon_mobile (x=622) -->
+    
+    <!-- Page: icon_receive (x=702) -->
+    
+    <!-- Page: icon_send (x=782) -->
+    
+  </g>
+<style
+   type="text/css"
+   id="style2">
+	.st0{fill:#80CC28;}
+</style></svg>

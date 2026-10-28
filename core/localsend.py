@@ -41,6 +41,18 @@ def _get_opener():
     return urllib.request.build_opener(proxy_handler, https_handler)
 
 
+def _get_local_ip_set():
+    """Returns all IPv4 addresses belonging to this computer (including loopback and virtual adapters)."""
+    ips = {"127.0.0.1", "localhost", "28.0.0.1"}
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ips.add(info[4][0])
+    except Exception:
+        pass
+    return ips
+
+
 class LocalSendDevice:
     def __init__(
         self,
@@ -120,13 +132,17 @@ class LocalSendDiscovery:
                 with opener.open(reg_req, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode('utf-8'))
+                        alias = data.get('alias', 'Unknown Device')
+                        fp = data.get('fingerprint', '')
+                        if alias == "QGIS LAN Drop" or fp.startswith("qgis-lan-drop"):
+                            return None
                         return LocalSendDevice(
                             ip=ip,
                             port=port,
-                            alias=data.get('alias', 'Unknown Device'),
+                            alias=alias,
                             device_model=data.get('deviceModel', ''),
                             device_type=data.get('deviceType', 'mobile'),
-                            fingerprint=data.get('fingerprint', ''),
+                            fingerprint=fp,
                             https=(proto == "https")
                         )
             except Exception:
@@ -139,13 +155,17 @@ class LocalSendDiscovery:
                 with opener.open(info_req, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode('utf-8'))
+                        alias = data.get('alias', 'Unknown Device')
+                        fp = data.get('fingerprint', '')
+                        if alias == "QGIS LAN Drop" or fp.startswith("qgis-lan-drop"):
+                            return None
                         return LocalSendDevice(
                             ip=ip,
                             port=port,
-                            alias=data.get('alias', 'Unknown Device'),
+                            alias=alias,
                             device_model=data.get('deviceModel', ''),
                             device_type=data.get('deviceType', 'mobile'),
-                            fingerprint=data.get('fingerprint', ''),
+                            fingerprint=fp,
                             https=(proto == "https")
                         )
             except Exception:
@@ -243,11 +263,20 @@ class LocalSendDiscovery:
             except Exception:
                 pass
 
+            local_ips = _get_local_ip_set()
             if self.local_ip and "." in self.local_ip:
                 try:
-                    bcast_ip = f"{self.local_ip.rsplit('.', 1)[0]}.255"
+                    parts = self.local_ip.split('.')
+                    bcast_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.255"
                     sock.sendto(query_payload, (bcast_ip, LOCALSEND_PORT))
                     sock.sendto(query_payload, ("255.255.255.255", LOCALSEND_PORT))
+                    # Also broadcast to neighboring /20 or common subnets if applicable
+                    if parts[0] == "192" and parts[1] == "168":
+                        if parts[2] != "0":
+                            sock.sendto(query_payload, (f"{parts[0]}.{parts[1]}.0.255", LOCALSEND_PORT))
+                        if parts[2] != "1":
+                            sock.sendto(query_payload, (f"{parts[0]}.{parts[1]}.1.255", LOCALSEND_PORT))
+                        sock.sendto(query_payload, (f"{parts[0]}.{parts[1]}.15.255", LOCALSEND_PORT))
                 except Exception:
                     pass
 
@@ -258,10 +287,23 @@ class LocalSendDiscovery:
                 try:
                     data, addr = sock.recvfrom(4096)
                     ip = addr[0]
-                    if ip == self.local_ip or ip.startswith("127."):
+                    # Strict self-filter: ignore loopbacks, virtual adapter IPs, and own host IPs
+                    if (
+                        ip == self.local_ip
+                        or ip in local_ips
+                        or ip.startswith("127.")
+                        or ip.startswith("28.")
+                        or ip.startswith("198.18.")
+                    ):
                         continue
+
                     msg = json.loads(data.decode('utf-8', errors='ignore'))
                     alias = msg.get('alias', 'Unknown')
+                    fp = msg.get('fingerprint', '')
+                    # Ignore announcements originating from our own plugin
+                    if alias == "QGIS LAN Drop" or fp.startswith("qgis-lan-drop"):
+                        continue
+
                     model = msg.get('deviceModel', '')
                     dtype = msg.get('deviceType', 'mobile')
                     port = msg.get('port', LOCALSEND_PORT)
@@ -311,11 +353,12 @@ class LocalSendDiscovery:
         remaining = [i for i in range(1, 255) if i != my_last and i not in prioritized]
         all_indices = prioritized + remaining
 
+        local_ips = _get_local_ip_set()
         def probe_index(idx):
             if not self._running:
                 return
             target_ip = f"{base_prefix}{idx}"
-            if target_ip in self.discovered_devices:
+            if target_ip in self.discovered_devices or target_ip in local_ips or target_ip == self.local_ip:
                 return
 
             # Fast TCP port probe with short timeout to prevent blocking

@@ -15,6 +15,7 @@ from qgis.core import Qgis
 
 from .ui.send_dialog import QFieldSendDialog
 from .ui.receive_dialog import QFieldReceiveDialog
+from .i18n_helper import tr, load_translator, unload_translator
 
 
 class QFieldDropPlugin:
@@ -28,6 +29,7 @@ class QFieldDropPlugin:
         self.mobile_dlg = None
         self._standalone_server = None
         self.plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        self.translator = load_translator(self.plugin_dir)
 
     def _clean_stale_actions(self):
         """Purges any lingering ghost/stale actions from toolbars and menus."""
@@ -47,9 +49,9 @@ class QFieldDropPlugin:
                     if obj in obj_names or any(kw in t for kw in keywords):
                         try:
                             tb.removeAction(act)
-                        except Exception:
+                        except (AttributeError, RuntimeError):
                             pass
-        except Exception:
+        except (AttributeError, RuntimeError):
             pass
 
         # 2. Clean from plugin menu
@@ -62,13 +64,13 @@ class QFieldDropPlugin:
                             for sub_act in list(act.menu().actions()):
                                 try:
                                     act.menu().removeAction(sub_act)
-                                except Exception:
+                                except (AttributeError, RuntimeError):
                                     pass
                         try:
                             p_menu.removeAction(act)
-                        except Exception:
+                        except (AttributeError, RuntimeError):
                             pass
-        except Exception:
+        except (AttributeError, RuntimeError):
             pass
 
     def initGui(self):
@@ -76,47 +78,51 @@ class QFieldDropPlugin:
         # Clean up any stale/ghost actions first (e.g. from hot-reloads)
         self._clean_stale_actions()
 
-        # Check icon/ directory first, fallback to root
-        icon_send_path = os.path.join(self.plugin_dir, "icon", "icon_send.svg")
-        if not os.path.exists(icon_send_path):
-            icon_send_path = os.path.join(self.plugin_dir, "icon_send.svg")
+        # 优先读取 icons/ 目录（支持用户升级与 Inkscape 批量导出），其次降级回退到 icon/ 与根目录
+        icons_dir = os.path.join(self.plugin_dir, "icons")
+        icon_dir = os.path.join(self.plugin_dir, "icon")
 
-        icon_receive_path = os.path.join(self.plugin_dir, "icon", "icon_receive.svg")
-        if not os.path.exists(icon_receive_path):
-            icon_receive_path = os.path.join(self.plugin_dir, "icon_receive.svg")
+        def _resolve_icon(name):
+            p_icons = os.path.join(icons_dir, name)
+            if os.path.exists(p_icons):
+                return p_icons
+            p_icon = os.path.join(icon_dir, name)
+            if os.path.exists(p_icon):
+                return p_icon
+            return os.path.join(self.plugin_dir, name)
 
-        icon_mobile_path = os.path.join(self.plugin_dir, "icon", "icon_mobile.svg")
-        if not os.path.exists(icon_mobile_path):
-            icon_mobile_path = os.path.join(self.plugin_dir, "icon_mobile.svg")
+        icon_send_path = _resolve_icon("icon_send.svg")
+        icon_receive_path = _resolve_icon("icon_receive.svg")
+        icon_mobile_path = _resolve_icon("icon_mobile.svg")
 
         # Action 1: Outbound Dispatch
         self.action_send = QAction(
             QIcon(icon_send_path),
-            "投送工程至 QField (Drop Out)",
+            tr("Drop Out (Send to QField)"),
             self.iface.mainWindow()
         )
         self.action_send.setObjectName("qfielddrop_action_send")
-        self.action_send.setStatusTip("一键保存、打包并投送当前工程至外业手机 QField (扫码唤醒 / LocalSend / ADB)")
+        self.action_send.setStatusTip(tr("Save, package and transfer current project to QField via QR/LocalSend/ADB"))
         self.action_send.triggered.connect(self.run_send)
 
         # Action 2: Inbound Return
         self.action_receive = QAction(
             QIcon(icon_receive_path),
-            "接收 QField 成果 (Drop In)",
+            tr("Drop In (Receive from QField)"),
             self.iface.mainWindow()
         )
         self.action_receive.setObjectName("qfielddrop_action_receive")
-        self.action_receive.setStatusTip("一键开启成果接收服务，从手机回传外业成果 (网页扫码 / ADB拉取，无需重新打包)")
+        self.action_receive.setStatusTip(tr("Start receiving service and retrieve field updates via Web/ADB"))
         self.action_receive.triggered.connect(self.run_receive)
 
         # Action 3: Mobile Companion Installer
         self.action_mobile = QAction(
             QIcon(icon_mobile_path),
-            "安装 QField 手机助手 (Mobile Setup)",
+            tr("Install QField Mobile Companion"),
             self.iface.mainWindow()
         )
         self.action_mobile.setObjectName("qfielddrop_action_mobile")
-        self.action_mobile.setStatusTip("为手机 QField 安装配套助手插件 (扫码安装 / QField URL / ADB写入 / 离线ZIP)")
+        self.action_mobile.setStatusTip(tr("Install companion QML plugin onto mobile QField"))
         self.action_mobile.triggered.connect(self.run_mobile_install)
 
         # Add all to Toolbar
@@ -134,28 +140,28 @@ class QFieldDropPlugin:
         if self.dlg_send:
             try:
                 self.dlg_send.close()
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
             self.dlg_send = None
 
         if self.dlg_receive:
             try:
                 self.dlg_receive.close()
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
             self.dlg_receive = None
 
         if self.mobile_dlg:
             try:
                 self.mobile_dlg.close()
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
             self.mobile_dlg = None
 
         if self._standalone_server:
             try:
                 self._standalone_server.stop()
-            except Exception:
+            except (AttributeError, RuntimeError, OSError):
                 pass
             self._standalone_server = None
 
@@ -164,11 +170,15 @@ class QFieldDropPlugin:
                 try:
                     self.iface.removePluginMenu("&QField LAN Drop", act)
                     self.iface.removeToolBarIcon(act)
-                except Exception:
+                except (AttributeError, RuntimeError):
                     pass
         self.action_send = None
         self.action_receive = None
         self.action_mobile = None
+
+        # Unload QTranslator
+        if self.translator:
+            self.translator = unload_translator(self.translator)
 
         # Ensure complete sweep of any residual actions
         self._clean_stale_actions()

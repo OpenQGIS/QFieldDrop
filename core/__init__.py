@@ -9,6 +9,7 @@ from .qr_native import generate_qr_matrix, render_qr_to_qimage, render_qr_to_qpi
 from .localsend import LocalSendDiscovery, LocalSendClient, LocalSendDevice
 from .mdns_server import MdnsResponder
 from .adb_pusher import AdbPusher
+from .compat import safe_exec, set_window_stay_on_top
 
 __all__ = [
     "ProjectPackager",
@@ -22,4 +23,6 @@ __all__ = [
     "LocalSendDevice",
     "MdnsResponder",
     "AdbPusher",
+    "safe_exec",
+    "set_window_stay_on_top",
 ]
