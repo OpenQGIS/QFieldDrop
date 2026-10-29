@@ -9,6 +9,12 @@ Item {
     id: root
     property var mainWindow: typeof iface !== "undefined" && iface ? iface.mainWindow() : null
 
+    // Hidden TextEdit for reading clipboard text cross-platform
+    TextEdit {
+        id: clipHelper
+        visible: false
+    }
+
     // Active scanner reference
     property var activeScanner: null
 
@@ -40,7 +46,9 @@ Item {
                 returnDialog.parent = mainWindow.contentItem
             }
             returnDialog.open()
-            detectLocalDesktop()
+            if (!checkClipboard()) {
+                detectLocalDesktop()
+            }
         }
     }
 
@@ -241,9 +249,9 @@ Item {
                         }
 
                         Button {
-                            id: btnScan
-                            text: qsTr("📷 扫码")
-                            onClicked: openScanner()
+                            id: btnPaste
+                            text: qsTr("📋 扫码识别")
+                            onClicked: readClipboardAndApply()
                         }
 
                         Button {
@@ -255,7 +263,7 @@ Item {
 
                     Label {
                         id: serverStatusLbl
-                        text: qsTr("提示: 确保手机与电脑已连入同一 Wi-Fi 或手机热点")
+                        text: qsTr("提示: 手机相机扫电脑二维码复制后，点击【扫码识别】或重新打开弹窗即可自动填入")
                         color: "#64748B"
                         font.pixelSize: 11
                         wrapMode: Text.Wrap
@@ -301,81 +309,36 @@ Item {
         }
     }
 
-    // Open scanner to read desktop return QR code
-    function openScanner() {
-        serverStatusLbl.text = qsTr("正在唤起相机扫码...")
-        serverStatusLbl.color = "#0284C7"
-
-        // 1. 优先使用已缓存的扫码器实例
-        if (activeScanner) {
-            try {
-                if (typeof activeScanner.open === "function") {
-                    activeScanner.open()
-                    return
-                }
-            } catch(e) {}
+    // Read system clipboard and automatically apply desktop IP & target project
+    function readClipboardAndApply() {
+        var found = checkClipboard()
+        if (!found) {
+            serverStatusLbl.text = qsTr("💡 未检测到回传地址。请用手机相机/微信扫电脑屏幕二维码复制后，再点此按钮！")
+            serverStatusLbl.color = "#0284C7"
         }
-
-        // 2. 尝试从 mainWindow 中探测全局 codeReader 组件
-        if (mainWindow) {
-            if (mainWindow.codeReader && typeof mainWindow.codeReader.open === "function") {
-                bindAndOpenScanner(mainWindow.codeReader)
-                return
-            }
-            if (typeof mainWindow.findChild === "function") {
-                var cr = mainWindow.findChild("codeReader")
-                if (cr && typeof cr.open === "function") {
-                    bindAndOpenScanner(cr)
-                    return
-                }
-            }
-        }
-
-        // 3. 动态加载 QField 原生 QfCodeReader.qml 组件
-        try {
-            var comp = Qt.createComponent("QfCodeReader.qml")
-            if (comp.status === Component.Ready) {
-                var parentItem = (mainWindow && mainWindow.contentItem) ? mainWindow.contentItem : returnDialog
-                var scannerObj = comp.createObject(parentItem)
-                if (scannerObj) {
-                    activeScanner = scannerObj
-                    bindAndOpenScanner(scannerObj)
-                    return
-                }
-            } else if (comp.status === Component.Error) {
-                console.log("QfCodeReader load error: " + comp.errorString())
-            }
-        } catch(err) {
-            console.log("Dynamic scanner creation failed: " + err)
-        }
-
-        // 4. 若环境不支持内置扫码（如桌面预览或未授权相机），给出清晰指引
-        serverStatusLbl.text = qsTr("提示: 未能自动调起相机，请确保已授予 QField 相机权限，或在上方手动输入电脑 IP")
-        serverStatusLbl.color = "#D97706"
     }
 
-    // Bind accepted/decoded signal to scanner object and open
-    function bindAndOpenScanner(scanner) {
-        var onResult = function(val) {
-            handleScannedResult(val)
-            try {
-                if (typeof scanner.close === "function") scanner.close()
-            } catch(e) {}
-        }
-
+    // Check system clipboard for desktop return URLs
+    function checkClipboard() {
         try {
-            if (scanner.accepted) {
-                scanner.accepted.connect(onResult)
-            } else if (scanner.decoded) {
-                scanner.decoded.connect(onResult)
+            clipHelper.text = ""
+            clipHelper.paste()
+            var clipVal = clipHelper.text ? clipHelper.text.trim() : ""
+            if (!clipVal) {
+                // If textfield already has a pasted url, check it
+                var curText = urlField.text ? urlField.text.trim() : ""
+                if (curText.indexOf(":8899") !== -1 || curText.indexOf("/upload") !== -1) {
+                    clipVal = curText
+                }
+            }
+            if (clipVal && (clipVal.indexOf("http://") !== -1 || clipVal.indexOf("https://") !== -1) && (clipVal.indexOf(":8899") !== -1 || clipVal.indexOf("/upload") !== -1 || clipVal.indexOf("/return") !== -1)) {
+                serverStatusLbl.text = qsTr("📋 已自动识别剪贴板电脑地址，正在握手探测...")
+                serverStatusLbl.color = "#059669"
+                handleScannedResult(clipVal)
+                return true
             }
         } catch(e) {}
-
-        if (typeof scanner.open === "function") {
-            scanner.open()
-        } else {
-            scanner.visible = true
-        }
+        return false
     }
 
     // Process scanned barcode/QR text
@@ -402,16 +365,16 @@ Item {
         var projMatch = text.match(/[?&]proj(?:ect)?=([^&#]+)/i)
         var targetProj = projMatch ? decodeURIComponent(projMatch[1]) : ""
 
-        serverStatusLbl.text = qsTr("📷 扫码成功！正在探测电脑服务: ") + targetBase
+        serverStatusLbl.text = qsTr("📋 地址已识别！正在探测电脑服务: ") + targetBase
         serverStatusLbl.color = "#0284C7"
 
         // 触发自动探测与提示
         detectLocalDesktop(function(connected) {
             if (connected) {
                 if (targetProj) {
-                    serverStatusLbl.text = qsTr("🟢 扫码已配对！关联工程: ") + targetProj + qsTr(" (点击下方按钮立即回传)")
+                    serverStatusLbl.text = qsTr("🟢 已配对电脑！关联工程: ") + targetProj + qsTr(" (点击下方按钮立即回传)")
                 } else {
-                    serverStatusLbl.text = qsTr("🟢 扫码已就绪！电脑连接正常，点击下方按钮立即回传。")
+                    serverStatusLbl.text = qsTr("🟢 已配对就绪！电脑连接正常，点击下方按钮立即回传。")
                 }
                 serverStatusLbl.color = "#059669"
             }

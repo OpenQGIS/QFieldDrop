@@ -184,7 +184,8 @@ _MOBILE_UPLOAD_HTML = """<!DOCTYPE html>
   .progress-bar-bg { width: 100%; height: 10px; background: #E2E8F0; border-radius: 5px; overflow: hidden; }
   .progress-bar-fill { height: 100%; width: 0%; background: #10B981; transition: width 0.15s ease; }
   .status-text { font-size: 13px; margin-top: 6px; text-align: center; color: #475569; }
-  .tip-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #166534; line-height: 1.5; margin-bottom: 14px; }
+  .tip-box { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px; padding: 12px 14px; font-size: 12px; color: #166534; line-height: 1.5; margin-bottom: 14px; }
+  .btn-wake { width: 100%; background: #16A34A; color: white; border: none; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 6px; }
   .proj-badge { display: inline-block; background: #E0F2FE; color: #0369A1; font-weight: 600; padding: 3px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
 </style>
 </head>
@@ -194,7 +195,9 @@ _MOBILE_UPLOAD_HTML = """<!DOCTYPE html>
   <div id="projBadge" class="proj-badge" style="display:none;"></div>
   
   <div class="tip-box">
-    💡 <b>外业极速建议</b>：若手机已安装 QField 伴侣插件，请在 QField 顶部工具栏点击图标并选择 <b>【📷 扫码】</b>，无需在手机浏览器中翻找 Android 沙盒！
+    <div style="font-weight:700; font-size:13px; margin-bottom:4px;">⚡ 推荐在 QField 伴侣中一键秒传 (绕过沙盒)</div>
+    <div style="font-size:12px; opacity:0.9; margin-bottom:6px;">无需在此网页手动翻找 Android 沙盒文件，点击复制并直接唤醒 QField：</div>
+    <button type="button" class="btn-wake" onclick="copyAndWakeQField()">📋 复制回传地址并唤醒 QField</button>
   </div>
 
   <p class="desc">请选择 QField 导出的工程压缩包 (.zip) 或现场照片，点击立即回传到电脑 QGIS。</p>
@@ -238,6 +241,35 @@ if (projName) {
     badge.innerText = '🎯 目标电脑工程: ' + projName;
     badge.style.display = 'inline-block';
   }
+}
+
+function copyAndWakeQField() {
+  const curUrl = window.location.href;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(curUrl).then(() => {
+      window.location.href = 'qfield://';
+      setTimeout(() => {
+        alert('✅ 回传地址已复制！\n请打开手机 QField，点击顶部回传图标即可全自动完成配对。');
+      }, 500);
+    }).catch(() => {
+      fallbackCopy(curUrl);
+    });
+  } else {
+    fallbackCopy(curUrl);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  window.location.href = 'qfield://';
+  setTimeout(() => {
+    alert('✅ 回传地址已复制！\n请打开手机 QField，点击顶部回传图标即可全自动完成配对。');
+  }, 500);
 }
 
 fileInput.addEventListener('change', function() {

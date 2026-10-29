@@ -236,9 +236,10 @@ class QFieldReceiveDialog(QDialog):
         right_col.addLayout(ip_row)
 
         qr_tip = QLabel(
-            "<b>扫码回传说明:</b><br>"
-            "• <b>推荐:</b> 手机 QField 插件内点击 <b>[📷 扫码]</b> 自动配对回传<br>"
-            "• <b>备选:</b> 手机相机扫码打开网页，选择压缩包或照片上传"
+            "<b>扫码回传指引:</b><br>"
+            "① 手机自带相机/微信扫左侧二维码，点击复制网址；<br>"
+            "② 打开手机 QField，点击顶部图标即可全自动配对；<br>"
+            "③ 或扫码后在手机网页点击【唤醒 QField】一键直达。"
         )
         qr_tip.setWordWrap(True)
         tip_f = qr_tip.font()
