@@ -9,10 +9,12 @@ Item {
     id: root
     property var mainWindow: typeof iface !== "undefined" && iface ? iface.mainWindow() : null
 
-    // Hidden TextEdit for reading clipboard text cross-platform
+    // Hidden TextEdit inside root for clipboard fallback
     TextEdit {
         id: clipHelper
         visible: false
+        width: 0
+        height: 0
     }
 
     // Active scanner reference
@@ -250,7 +252,7 @@ Item {
 
                         Button {
                             id: btnPaste
-                            text: qsTr("📋 扫码识别")
+                            text: qsTr("📋 粘贴识别")
                             onClicked: readClipboardAndApply()
                         }
 
@@ -263,7 +265,7 @@ Item {
 
                     Label {
                         id: serverStatusLbl
-                        text: qsTr("提示: 手机相机扫电脑二维码复制后，点击【扫码识别】或重新打开弹窗即可自动填入")
+                        text: qsTr("提示: 手机自带相机扫电脑二维码复制后，点击【粘贴识别】全自动配对")
                         color: "#64748B"
                         font.pixelSize: 11
                         wrapMode: Text.Wrap
@@ -309,33 +311,66 @@ Item {
         }
     }
 
+    // Show toast message using QField native toast or fallback to status label
+    function showToast(msg) {
+        var isSuccess = (msg.indexOf("🟢") !== -1 || msg.indexOf("✅") !== -1)
+        var isWarn = (msg.indexOf("⚠️") !== -1 || msg.indexOf("💡") !== -1)
+        serverStatusLbl.text = msg
+        serverStatusLbl.color = isSuccess ? "#059669" : (isWarn ? "#D97706" : "#0284C7")
+        try {
+            if (mainWindow && typeof mainWindow.displayToast === "function") {
+                mainWindow.displayToast(msg)
+            } else if (typeof iface !== "undefined" && iface && iface.mainWindow && typeof iface.mainWindow().displayToast === "function") {
+                iface.mainWindow().displayToast(msg)
+            }
+        } catch(e) {}
+    }
+
     // Read system clipboard and automatically apply desktop IP & target project
     function readClipboardAndApply() {
+        // 1. 先尝试让 urlField 获焦并执行粘贴
+        try {
+            urlField.forceActiveFocus()
+            urlField.selectAll()
+            urlField.paste()
+            var newText = urlField.text ? urlField.text.trim() : ""
+            if (newText && (newText.indexOf("http") !== -1 || newText.indexOf(":8899") !== -1)) {
+                handleScannedResult(newText)
+                showToast("🟢 已成功粘贴并识别电脑回传地址！")
+                return
+            }
+        } catch(e) {}
+
+        // 2. 检查 checkClipboard 提取
         var found = checkClipboard()
-        if (!found) {
-            serverStatusLbl.text = qsTr("💡 未检测到回传地址。请用手机相机/微信扫电脑屏幕二维码复制后，再点此按钮！")
-            serverStatusLbl.color = "#0284C7"
+        if (found) {
+            showToast("🟢 已自动识别剪贴板电脑地址！")
+            return
         }
+
+        // 3. 检查输入框当前是否已有有效网址
+        var currentText = urlField.text ? urlField.text.trim() : ""
+        if (currentText && currentText.indexOf("http") !== -1 && currentText.indexOf(":8899") !== -1) {
+            handleScannedResult(currentText)
+            showToast("🟢 已提取输入框地址并开始探测！")
+            return
+        }
+
+        // 4. 给出清晰明确的 Toast 弹窗反馈
+        showToast("💡 剪贴板未检测到地址！请用手机自带相机扫码复制后再次点击")
     }
 
     // Check system clipboard for desktop return URLs
     function checkClipboard() {
         try {
-            clipHelper.text = ""
-            clipHelper.paste()
-            var clipVal = clipHelper.text ? clipHelper.text.trim() : ""
-            if (!clipVal) {
-                // If textfield already has a pasted url, check it
-                var curText = urlField.text ? urlField.text.trim() : ""
-                if (curText.indexOf(":8899") !== -1 || curText.indexOf("/upload") !== -1) {
-                    clipVal = curText
+            if (typeof clipHelper !== "undefined" && clipHelper) {
+                clipHelper.text = ""
+                clipHelper.paste()
+                var clipVal = clipHelper.text ? clipHelper.text.trim() : ""
+                if (clipVal && (clipVal.indexOf("http://") !== -1 || clipVal.indexOf("https://") !== -1) && (clipVal.indexOf(":8899") !== -1 || clipVal.indexOf("/upload") !== -1 || clipVal.indexOf("/return") !== -1)) {
+                    handleScannedResult(clipVal)
+                    return true
                 }
-            }
-            if (clipVal && (clipVal.indexOf("http://") !== -1 || clipVal.indexOf("https://") !== -1) && (clipVal.indexOf(":8899") !== -1 || clipVal.indexOf("/upload") !== -1 || clipVal.indexOf("/return") !== -1)) {
-                serverStatusLbl.text = qsTr("📋 已自动识别剪贴板电脑地址，正在握手探测...")
-                serverStatusLbl.color = "#059669"
-                handleScannedResult(clipVal)
-                return true
             }
         } catch(e) {}
         return false

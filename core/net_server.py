@@ -245,31 +245,42 @@ if (projName) {
 
 function copyAndWakeQField() {
   const curUrl = window.location.href;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(curUrl).then(() => {
-      window.location.href = 'qfield://';
-      setTimeout(() => {
-        alert('✅ 回传地址已复制！\n请打开手机 QField，点击顶部回传图标即可全自动完成配对。');
-      }, 500);
-    }).catch(() => {
-      fallbackCopy(curUrl);
-    });
-  } else {
-    fallbackCopy(curUrl);
-  }
+  const ok = copyToClipboardSync(curUrl);
+  try {
+    window.location.href = 'qfield://';
+  } catch(e) {}
+  setTimeout(() => {
+    if (ok) {
+      alert('✅ 电脑回传地址已复制到剪贴板！\n\n请打开手机 QField，点击顶部【回传图标】即可全自动配对。');
+    } else {
+      prompt('请长按下方地址复制，并在手机 QField 中直接回传：', curUrl);
+    }
+  }, 300);
 }
 
-function fallbackCopy(text) {
+function copyToClipboardSync(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      navigator.clipboard.writeText(text);
+      return true;
+    } catch(e) {}
+  }
   const ta = document.createElement('textarea');
   ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '0';
+  ta.setAttribute('readonly', '');
   document.body.appendChild(ta);
+  ta.focus();
   ta.select();
-  document.execCommand('copy');
+  ta.setSelectionRange(0, 99999);
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch(e) {}
   document.body.removeChild(ta);
-  window.location.href = 'qfield://';
-  setTimeout(() => {
-    alert('✅ 回传地址已复制！\n请打开手机 QField，点击顶部回传图标即可全自动完成配对。');
-  }, 500);
+  return ok;
 }
 
 fileInput.addEventListener('change', function() {
