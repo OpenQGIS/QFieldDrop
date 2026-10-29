@@ -18,7 +18,7 @@ tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
   Version 1.2.2:
-  - 🎨 Flake8 代码格式与缩进零警告：彻底修复二维码引擎中 5 处混用空格与制表符缩进问题（E101 mixed spaces/tabs），代码质量与安全全量通过。 / Fixed E101 indentation issues in QR engine, achieving 100% clean Flake8 code quality.
+  - 🎨 Flake8 代码格式与缩进零警告：彻底修复二维码引擎中 5 处混用空格与制表符缩进问题（E101 mixed spaces/tabs），代码质量与安全全量通过。 / Fixed E101 indentation issues in QR engine, achieving full clean Flake8 code quality.
   - 🏷️ 插件品牌全域统一：正式将插件官方显示名称统一为 QFieldDrop。 / Synchronized official plugin name to QFieldDrop.
 
   Version 1.2.1:
