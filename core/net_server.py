@@ -184,9 +184,11 @@ _MOBILE_UPLOAD_HTML = """<!DOCTYPE html>
   .progress-bar-bg { width: 100%; height: 10px; background: #E2E8F0; border-radius: 5px; overflow: hidden; }
   .progress-bar-fill { height: 100%; width: 0%; background: #10B981; transition: width 0.15s ease; }
   .status-text { font-size: 13px; margin-top: 6px; text-align: center; color: #475569; }
-  .tip-box { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px; padding: 12px 14px; font-size: 12px; color: #166534; line-height: 1.5; margin-bottom: 14px; }
-  .btn-wake { width: 100%; background: #16A34A; color: white; border: none; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 6px; }
-  .proj-badge { display: inline-block; background: #E0F2FE; color: #0369A1; font-weight: 600; padding: 3px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+  .tip-box { background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 10px; padding: 14px; font-size: 13px; line-height: 1.5; margin-bottom: 16px; }
+  .url-input-box { width: 100%; padding: 10px 12px; font-size: 13px; border: 1px solid #94A3B8; border-radius: 6px; background: #FFFFFF; color: #0F172A; font-family: monospace; margin: 8px 0; }
+  .btn-copy { width: 100%; background: #0284C7; color: white; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+  .btn-copy.copied { background: #16A34A !important; }
+  .proj-badge { display: inline-block; background: #E0F2FE; color: #0369A1; font-weight: 600; padding: 4px 10px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -195,12 +197,15 @@ _MOBILE_UPLOAD_HTML = """<!DOCTYPE html>
   <div id="projBadge" class="proj-badge" style="display:none;"></div>
   
   <div class="tip-box">
-    <div style="font-weight:700; font-size:13px; margin-bottom:4px;">⚡ 推荐在 QField 伴侣中一键秒传 (绕过沙盒)</div>
-    <div style="font-size:12px; opacity:0.9; margin-bottom:6px;">无需在此网页手动翻找 Android 沙盒文件，点击复制并直接唤醒 QField：</div>
-    <button type="button" class="btn-wake" onclick="copyAndWakeQField()">📋 复制回传地址并唤醒 QField</button>
+    <div style="font-weight:700; font-size:14px; color:#0369A1; margin-bottom:4px;">📱 方式一：在 QField 软件内一键回传</div>
+    <div style="font-size:12px; color:#475569;">复制下方电脑地址后，直接切换回手机 QField，点击顶部图标即可自动完成配对：</div>
+    <input type="text" id="urlDisplay" class="url-input-box" readonly onclick="this.select()" />
+    <button type="button" id="copyBtn" class="btn-copy" onclick="copyReturnUrl()">📋 一键复制电脑地址</button>
+    <div id="copyNotice" style="display:none; font-size:12px; color:#16A34A; font-weight:600; margin-top:6px; text-align:center;">✅ 已复制！请打开手机 QField 点击顶部图标即可回传。</div>
   </div>
 
-  <p class="desc">请选择 QField 导出的工程压缩包 (.zip) 或现场照片，点击立即回传到电脑 QGIS。</p>
+  <div style="font-weight:700; font-size:14px; color:#334155; margin-bottom:8px;">📁 方式二：直接在此网页选择文件上传</div>
+  <p class="desc">若您已在 QField 导出工程 ZIP 或有现场照片，直接在下方选择即可秒传电脑：</p>
   
   <input type="file" id="fileInput" style="display:none;" />
   <div class="file-dropzone" onclick="document.getElementById('fileInput').click()">
@@ -243,44 +248,57 @@ if (projName) {
   }
 }
 
-function copyAndWakeQField() {
-  const curUrl = window.location.href;
-  const ok = copyToClipboardSync(curUrl);
-  try {
-    window.location.href = 'qfield://';
-  } catch(e) {}
-  setTimeout(() => {
-    if (ok) {
-      alert('✅ 电脑回传地址已复制到剪贴板！\n\n请打开手机 QField，点击顶部【回传图标】即可全自动配对。');
-    } else {
-      prompt('请长按下方地址复制，并在手机 QField 中直接回传：', curUrl);
-    }
-  }, 300);
+const urlDisplay = document.getElementById('urlDisplay');
+if (urlDisplay) {
+  urlDisplay.value = window.location.href;
 }
 
-function copyToClipboardSync(text) {
+function copyReturnUrl() {
+  const curUrl = window.location.href;
+  const copyBtn = document.getElementById('copyBtn');
+  const copyNotice = document.getElementById('copyNotice');
+  
+  if (urlDisplay) {
+    urlDisplay.focus();
+    urlDisplay.select();
+    urlDisplay.setSelectionRange(0, 99999);
+  }
+
+  let ok = false;
   if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(curUrl).then(() => {
+      onCopySuccess();
+    }).catch(() => {
+      onCopyFallback();
+    });
+    return;
+  }
+  onCopyFallback();
+
+  function onCopyFallback() {
     try {
-      navigator.clipboard.writeText(text);
-      return true;
+      ok = document.execCommand('copy');
+    } catch(e) {}
+    onCopySuccess();
+  }
+
+  function onCopySuccess() {
+    if (copyBtn) {
+      copyBtn.innerText = '✅ 地址已成功复制！';
+      copyBtn.classList.add('copied');
+    }
+    if (copyNotice) {
+      copyNotice.style.display = 'block';
+    }
+    // 尝试轻量唤醒，若浏览器拦截则无损静默
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = 'qfield://';
+      document.body.appendChild(iframe);
+      setTimeout(() => document.body.removeChild(iframe), 2000);
     } catch(e) {}
   }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  ta.style.top = '0';
-  ta.setAttribute('readonly', '');
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  ta.setSelectionRange(0, 99999);
-  let ok = false;
-  try {
-    ok = document.execCommand('copy');
-  } catch(e) {}
-  document.body.removeChild(ta);
-  return ok;
 }
 
 fileInput.addEventListener('change', function() {
