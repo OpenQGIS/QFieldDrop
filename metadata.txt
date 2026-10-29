@@ -18,9 +18,8 @@ tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
   Version 1.2.0-beta:
-  - 🎯 纯粹极简扫码互传：全面瘦身界面，剥离复杂的多重嵌套选项卡，聚焦于最直接的手机相机扫码唤醒出工（Drop Out）与扫码成果回传（Drop In）。 / Streamlined single-screen QR drop experience, stripping complex multi-level tabs to focus strictly on camera deep-link dispatch and mobile survey return.
-  - 📱 零等待即开即扫：投送与接收窗口全面升级为轻量单屏卡片，加载耗时降至极限，开箱即用。 / Instant single-card modal dialogs with zero tab-switching overhead.
-  - 📖 高清 In-App 帮助中心与离线手册：内置清晰的原生图文实机操作指引（ClearType 矢量抗锯齿），支持多语言无缝切换。 / Built-in high-DPI help center and offline manual with crisp vector font rendering.
+  - 🎯 纯粹极简扫码互传：全面瘦身界面，剥离复杂选项卡与冗余帮助文档，聚焦于最直接的手机相机扫码唤醒出工（Drop Out）与扫码成果回传（Drop In）。 / Streamlined single-screen QR drop experience, stripping complex tabs and documentation to focus strictly on camera deep-link dispatch and mobile survey return.
+  - 📱 零等待即开即扫：投送、接收与助手安装窗口全面升级为轻量单屏卡片，加载耗时降至极限，秒级开箱即用。 / Instant single-card modal dialogs with zero tab-switching overhead.
 
   Version 1.1.4:
   - 🌐 极简下载地址与秒级扫码：下载直链优化为 /project.zip，移除繁琐的中文 URL 转义，大幅降低二维码点阵密度并提升手机扫码识别率；保留 RFC 6266 标准标头确保手机下载后仍自动保存为真实中文工程名。 / Streamlined download URL to clean /project.zip alias, removing percent-encoded Chinese characters to produce lower-density, faster-scanning QR codes while retaining RFC 6266 automatic filename decoding.

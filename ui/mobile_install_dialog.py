@@ -166,20 +166,12 @@ class MobileInstallDialog(QDialog):
 
         # 3. Bottom Native Actions with QDialogButtonBox (Localized "关闭")
         bottom_row = QHBoxLayout()
-        btn_help = QPushButton("? 使用帮助")
-        btn_help.setIcon(get_icon("help-circle"))
-        btn_help.clicked.connect(lambda: self._open_help("mobile_setup"))
-        bottom_row.addWidget(btn_help)
         bottom_row.addStretch()
         self.button_box = QDialogButtonBox()
         btn_close = self.button_box.addButton("关闭", QDialogButtonBox.RejectRole)
         btn_close.clicked.connect(self.close)
         bottom_row.addWidget(self.button_box)
         main_layout.addLayout(bottom_row)
-
-    def _open_help(self, section_id: str = "mobile_setup"):
-        from .help_dialog import HelpDialog
-        HelpDialog.show_help(parent=self, section_id=section_id)
 
     def _on_ip_changed(self):
         curr_idx = self.ip_combo.currentIndex()

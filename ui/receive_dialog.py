@@ -315,11 +315,6 @@ class QFieldReceiveDialog(QDialog):
         self.status_box = QLabel(f"成果接收服务已就绪，正在监听局域网端口 :{self.port}")
         bottom_row.addWidget(self.status_box, 1)
 
-        self.btn_help = QPushButton("? 帮助")
-        self.btn_help.setIcon(get_icon("help-circle"))
-        self.btn_help.clicked.connect(lambda: self._open_help("receive_results"))
-        bottom_row.addWidget(self.btn_help)
-
         self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
@@ -753,10 +748,6 @@ class QFieldReceiveDialog(QDialog):
             except (RuntimeError, AttributeError, OSError):
                 pass
             self.server = None
-
-    def _open_help(self, section_id: str = "receive_results"):
-        from .help_dialog import HelpDialog
-        HelpDialog.show_help(parent=self, section_id=section_id)
 
     def closeEvent(self, event):
         self._cleanup()

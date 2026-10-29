@@ -250,11 +250,6 @@ class QFieldSendDialog(QDialog):
         self.status_box = QLabel("正在初始化服务...")
         bottom_row.addWidget(self.status_box, 1)
 
-        self.btn_help = QPushButton("? 帮助")
-        self.btn_help.setIcon(get_icon("help-circle"))
-        self.btn_help.clicked.connect(lambda: self._open_help("send_project"))
-        bottom_row.addWidget(self.btn_help)
-
         self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
@@ -433,10 +428,6 @@ class QFieldSendDialog(QDialog):
 
     def _on_server_error(self, err_msg: str):
         self.status_box.setText(f"服务异常: {err_msg}")
-
-    def _open_help(self, section: str = "send_project"):
-        from .help_dialog import HelpDialog
-        HelpDialog.show_help(self, initial_section=section)
 
     def closeEvent(self, event):
         self._cleanup()

@@ -6,7 +6,9 @@ QField LAN Drop - 集中式多语言英汉翻译字典 (Fallback 保底库)
 
 _zh_translations = {
     # 插件入口与菜单动作
-    "QField LAN Drop": "QField 局域网直传",
+    "QFieldDrop": "QFieldDrop",
+    "QFieldDrop_Dev": "QFieldDrop_Dev",
+    "QField LAN Drop": "QFieldDrop",
     "Drop Out (Send to QField)": "投送工程至 QField (Drop Out)",
     "Drop In (Receive from QField)": "接收 QField 成果 (Drop In)",
     "Install QField Mobile Companion": "安装 QField 手机助手 (Mobile Setup)",
