@@ -3,7 +3,7 @@ name=QFieldDrop
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links.
-version=1.2.1
+version=1.2.2
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 about=Transfer QGIS projects directly to mobile QField over local Wi-Fi or mobile hotspot using QR codes and qfield:// deep links. Works without cloud uploads, cables, or external pip dependencies.
@@ -17,6 +17,10 @@ deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
+  Version 1.2.2:
+  - 🎨 Flake8 代码格式与缩进零警告：彻底修复二维码引擎中 5 处混用空格与制表符缩进问题（E101 mixed spaces/tabs），代码质量与安全全量通过。 / Fixed E101 indentation issues in QR engine, achieving 100% clean Flake8 code quality.
+  - 🏷️ 插件品牌全域统一：正式将插件官方显示名称统一为 QFieldDrop。 / Synchronized official plugin name to QFieldDrop.
+
   Version 1.2.1:
   - ⚡ QGIS 4 / Qt6 作用域枚举深度兼容：全量重构 55 处 PyQt6 Scoped Enums 与强类型枚举，完美适配 QGIS 3.x (Qt5) 与 QGIS 4.x (Qt6)。 / Full Qt6 scoped enum compatibility for QGIS 3 and QGIS 4.
   - 🛡️ 官方代码安全合规加固：全面消除 Bandit 39 项安全隐患（0 漏洞、0 告警），重构跨平台文件定位为 Qt 原生 QDesktopServices。 / Zero Bandit security vulnerabilities and hardened cross-platform desktop integration.

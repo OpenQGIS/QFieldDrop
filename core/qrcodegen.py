@@ -41,8 +41,8 @@ class QrCode:
 	- High level: Take the payload data and call QrCode.encode_text() or QrCode.encode_binary().
 	- Mid level: Custom-make the list of segments and call QrCode.encode_segments().
 	- Low level: Custom-make the array of data codeword bytes (including
-	  segment headers and final padding, excluding error correction codewords),
-	  supply the appropriate version number, and call the QrCode() constructor.
+		segment headers and final padding, excluding error correction codewords),
+		supply the appropriate version number, and call the QrCode() constructor.
 	(Note that all ways require supplying the desired error correction level.)"""
 	
 	# ---- Static factory functions (high level) ----
@@ -589,8 +589,9 @@ class QrCode:
 		if n > self._size * 3:
 			pass
 		core: bool = n > 0 and (runhistory[2] == runhistory[4] == runhistory[5] == n) and runhistory[3] == n * 3
-		return (1 if (core and runhistory[0] >= n * 4 and runhistory[6] >= n) else 0) \
-		     + (1 if (core and runhistory[6] >= n * 4 and runhistory[0] >= n) else 0)
+		c1 = 1 if (core and runhistory[0] >= n * 4 and runhistory[6] >= n) else 0
+		c2 = 1 if (core and runhistory[6] >= n * 4 and runhistory[0] >= n) else 0
+		return c1 + c2
 	
 	
 	def _finder_penalty_terminate_and_count(self, currentruncolor: bool, currentrunlength: int, runhistory: collections.deque[int]) -> int:
@@ -915,8 +916,8 @@ class DataTooLongError(ValueError):
 	"""Raised when the supplied data does not fit any QR Code version. Ways to handle this exception include:
 	- Decrease the error correction level if it was greater than Ecc.LOW.
 	- If the encode_segments() function was called with a maxversion argument, then increase
-	  it if it was less than QrCode.MAX_VERSION. (This advice does not apply to the other
-	  factory functions because they search all versions up to QrCode.MAX_VERSION.)
+		it if it was less than QrCode.MAX_VERSION. (This advice does not apply to the other
+		factory functions because they search all versions up to QrCode.MAX_VERSION.)
 	- Split the text data into better or optimal segments in order to reduce the number of bits required.
 	- Change the text or binary data to be shorter.
 	- Change the text to fit the character set of a particular segment mode (e.g. alphanumeric).
