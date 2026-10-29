@@ -9,24 +9,22 @@ Native QGIS Desktop UI style.
 """
 
 import os
-import shutil
 import zipfile
-import urllib.parse
 from typing import Optional
 
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QLineEdit, QComboBox, QMessageBox, QApplication, QFileDialog,
-    QDialogButtonBox, QTabWidget, QWidget
+    QDialogButtonBox
 )
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 
-from ..core.net_server import NetworkHelper, LanDropServer
+from ..core.net_server import NetworkHelper
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon, get_icon_path
 
-ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter
 
 
 class AdbInstallWorker(QThread):
@@ -83,7 +81,7 @@ class MobileInstallDialog(QDialog):
                 cfg = configparser.ConfigParser()
                 cfg.read(mobile_meta, encoding='utf-8')
                 return cfg.get("general", "version", fallback="1.0.4")
-            except Exception:
+            except (configparser.Error, OSError, UnicodeDecodeError):
                 pass
         return "1.0.4"
 
@@ -101,12 +99,12 @@ class MobileInstallDialog(QDialog):
         ip_row = QHBoxLayout()
         ip_row.addWidget(QLabel("投送网卡:"))
         self.ip_combo = QComboBox()
-        self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.ip_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for idx, item in enumerate(self.lan_ips):
             self.ip_combo.addItem(item['label'], item['ip'])
-            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ToolTipRole)
+            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ItemDataRole.ToolTipRole)
         if self.ip_combo.count() > 0:
-            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ToolTipRole))
+            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ItemDataRole.ToolTipRole))
         self.ip_combo.currentIndexChanged.connect(self._on_ip_changed)
         ip_row.addWidget(self.ip_combo)
         ip_row.addStretch()
@@ -120,7 +118,7 @@ class MobileInstallDialog(QDialog):
         self.qr_label.setFixedSize(160, 160)
         self.qr_label.setAlignment(ALIGN_CENTER)
         self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid); border-radius: 6px;")
-        mid_row.addWidget(self.qr_label, 0, Qt.AlignTop)
+        mid_row.addWidget(self.qr_label, 0, Qt.AlignmentFlag.AlignTop)
 
         right_col = QVBoxLayout()
         right_col.setSpacing(6)
@@ -158,7 +156,7 @@ class MobileInstallDialog(QDialog):
         btn_export.setIcon(get_icon("download"))
         btn_export.setToolTip("无局域网环境时，可导出独立 ZIP 发送至手机安装")
         btn_export.clicked.connect(self._export_offline_zip)
-        right_col.addWidget(btn_export, 0, Qt.AlignLeft)
+        right_col.addWidget(btn_export, 0, Qt.AlignmentFlag.AlignLeft)
 
         mid_row.addLayout(right_col, 1)
         qr_layout.addLayout(mid_row)
@@ -168,7 +166,7 @@ class MobileInstallDialog(QDialog):
         bottom_row = QHBoxLayout()
         bottom_row.addStretch()
         self.button_box = QDialogButtonBox()
-        btn_close = self.button_box.addButton("关闭", QDialogButtonBox.RejectRole)
+        btn_close = self.button_box.addButton("关闭", QDialogButtonBox.ButtonRole.RejectRole)
         btn_close.clicked.connect(self.close)
         bottom_row.addWidget(self.button_box)
         main_layout.addLayout(bottom_row)
@@ -176,7 +174,7 @@ class MobileInstallDialog(QDialog):
     def _on_ip_changed(self):
         curr_idx = self.ip_combo.currentIndex()
         if curr_idx >= 0:
-            tip = self.ip_combo.itemData(curr_idx, Qt.ToolTipRole)
+            tip = self.ip_combo.itemData(curr_idx, Qt.ItemDataRole.ToolTipRole)
             if tip:
                 self.ip_combo.setToolTip(tip)
         data = self.ip_combo.currentData()
@@ -269,5 +267,5 @@ class MobileInstallDialog(QDialog):
     def __del__(self):
         try:
             self._cleanup()
-        except Exception:
+        except (RuntimeError, AttributeError, TypeError):
             pass

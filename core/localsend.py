@@ -18,7 +18,7 @@ import threading
 import urllib.request
 import urllib.error
 import concurrent.futures
-from typing import Dict, List, Optional, Callable, Tuple
+from typing import Dict, Optional, Callable, Tuple
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
 MULTICAST_GROUP = "224.0.0.167"
@@ -199,7 +199,7 @@ class LocalSendDiscovery:
                         )
             except (TimeoutError, socket.timeout, ConnectionRefusedError):
                 return None
-            except Exception:
+            except (urllib.error.URLError, OSError, ValueError, KeyError):
                 continue
         return None
 

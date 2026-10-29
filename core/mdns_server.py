@@ -123,9 +123,7 @@ class MdnsResponder:
                         resp = self._build_response(tx_id)
                         # Respond to mDNS multicast group
                         self._sock.sendto(resp, (MDNS_GROUP, MDNS_PORT))
-                except socket.timeout:
-                    continue
-                except Exception:
+                except (socket.timeout, struct.error, ValueError, IndexError, OSError):
                     continue
         except (socket.error, OSError):
             pass

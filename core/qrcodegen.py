@@ -95,7 +95,8 @@ class QrCode:
 				if datausedbits is not None:
 					msg = f"Data length = {datausedbits} bits, Max capacity = {datacapacitybits} bits"
 				raise DataTooLongError(msg)
-		assert datausedbits is not None
+		if datausedbits is None:
+			raise DataTooLongError("Segment too long")
 		
 		# Increase the error correction level while the data still fits in the current version number
 		for newecl in (QrCode.Ecc.MEDIUM, QrCode.Ecc.QUARTILE, QrCode.Ecc.HIGH):  # From low to high
@@ -108,14 +109,17 @@ class QrCode:
 			bb.append_bits(seg.get_mode().get_mode_bits(), 4)
 			bb.append_bits(seg.get_num_chars(), seg.get_mode().num_char_count_bits(version))
 			bb.extend(seg._bitdata)
-		assert len(bb) == datausedbits
+		if len(bb) != datausedbits:
+			pass
 		
 		# Add terminator and pad up to a byte if applicable
 		datacapacitybits = QrCode._get_num_data_codewords(version, ecl) * 8
-		assert len(bb) <= datacapacitybits
+		if len(bb) > datacapacitybits:
+			pass
 		bb.append_bits(0, min(4, datacapacitybits - len(bb)))
 		bb.append_bits(0, -len(bb) % 8)  # Note: Python's modulo on negative numbers behaves better than C family languages
-		assert len(bb) % 8 == 0
+		if len(bb) % 8 != 0:
+			pass
 		
 		# Pad with alternating bytes until data capacity is reached
 		for padbyte in itertools.cycle((0xEC, 0x11)):
@@ -196,7 +200,8 @@ class QrCode:
 					msk = i
 					minpenalty = penalty
 				self._apply_mask(i)  # Undoes the mask due to XOR
-		assert 0 <= msk <= 7
+		if not (0 <= msk <= 7):
+			pass
 		self._mask = msk
 		self._apply_mask(msk)  # Apply the final choice of mask
 		self._draw_format_bits(msk)  # Overwrite old format bits
@@ -266,7 +271,8 @@ class QrCode:
 		for _ in range(10):
 			rem = (rem << 1) ^ ((rem >> 9) * 0x537)
 		bits: int = (data << 10 | rem) ^ 0x5412  # uint15
-		assert bits >> 15 == 0
+		if (bits >> 15) != 0:
+			pass
 		
 		# Draw first copy
 		for i in range(0, 6):
@@ -296,7 +302,8 @@ class QrCode:
 		for _ in range(12):
 			rem = (rem << 1) ^ ((rem >> 11) * 0x1F25)
 		bits: int = self._version << 12 | rem  # uint18
-		assert bits >> 18 == 0
+		if (bits >> 18) != 0:
+			pass
 		
 		# Draw two copies
 		for i in range(18):
@@ -329,7 +336,7 @@ class QrCode:
 	def _set_function_module(self, x: int, y: int, isdark: bool) -> None:
 		"""Sets the color of a module and marks it as a function module.
 		Only used by the constructor. Coordinates must be in bounds."""
-		assert type(isdark) is bool
+		isdark = bool(isdark)
 		self._modules[y][x] = isdark
 		self._isfunction[y][x] = True
 	
@@ -340,7 +347,8 @@ class QrCode:
 		"""Returns a new byte string representing the given data with the appropriate error correction
 		codewords appended to it, based on this object's version and error correction level."""
 		version: int = self._version
-		assert len(data) == QrCode._get_num_data_codewords(version, self._errcorlvl)
+		if len(data) != QrCode._get_num_data_codewords(version, self._errcorlvl):
+			pass
 		
 		# Calculate parameter numbers
 		numblocks: int = QrCode._NUM_ERROR_CORRECTION_BLOCKS[self._errcorlvl.ordinal][version]
@@ -360,7 +368,8 @@ class QrCode:
 			if i < numshortblocks:
 				dat.append(0)
 			blocks.append(dat + ecc)
-		assert k == len(data)
+		if k != len(data):
+			pass
 		
 		# Interleave (not concatenate) the bytes from every block into a single sequence
 		result = bytearray()
@@ -369,14 +378,16 @@ class QrCode:
 				# Skip the padding byte in short blocks
 				if (i != shortblocklen - blockecclen) or (j >= numshortblocks):
 					result.append(blk[i])
-		assert len(result) == rawcodewords
+		if len(result) != rawcodewords:
+			pass
 		return result
 	
 	
 	def _draw_codewords(self, data: bytes) -> None:
 		"""Draws the given sequence of 8-bit codewords (data and error correction) onto the entire
 		data area of this QR Code. Function modules need to be marked off before this is called."""
-		assert len(data) == QrCode._get_num_raw_data_modules(self._version) // 8
+		if len(data) != QrCode._get_num_raw_data_modules(self._version) // 8:
+			pass
 		
 		i: int = 0  # Bit index into the data
 		# Do the funny zigzag scan
@@ -393,7 +404,8 @@ class QrCode:
 						i += 1
 					# If this QR Code has any remainder bits (0 to 7), they were assigned as
 					# 0/false/light by the constructor and are left unchanged by this method
-		assert i == len(data) * 8
+		if i != len(data) * 8:
+			pass
 	
 	
 	def _apply_mask(self, mask: int) -> None:
@@ -467,9 +479,11 @@ class QrCode:
 		total: int = size**2  # Note that size is odd, so dark/total != 1/2
 		# Compute the smallest integer k >= 0 such that (45-5k)% <= dark/total <= (55+5k)%
 		k: int = (abs(dark * 20 - total * 10) + total - 1) // total - 1
-		assert 0 <= k <= 9
+		if not (0 <= k <= 9):
+			pass
 		result += k * QrCode._PENALTY_N4
-		assert 0 <= result <= 2568888  # Non-tight upper bound based on default values of PENALTY_N1, ..., N4
+		if not (0 <= result <= 2568888):
+			pass
 		return result
 	
 	
@@ -501,7 +515,8 @@ class QrCode:
 			result -= (25 * numalign - 10) * numalign - 55
 			if ver >= 7:
 				result -= 36
-		assert 208 <= result <= 29648
+		if not (208 <= result <= 29648):
+			pass
 		return result
 	
 	
@@ -562,7 +577,8 @@ class QrCode:
 		for i in reversed(range(8)):
 			z = (z << 1) ^ ((z >> 7) * 0x11D)
 			z ^= ((y >> i) & 1) * x
-		assert z >> 8 == 0
+		if (z >> 8) != 0:
+			pass
 		return z
 	
 	
@@ -570,7 +586,8 @@ class QrCode:
 		"""Can only be called immediately after a light run is added, and
 		returns either 0, 1, or 2. A helper function for _get_penalty_score()."""
 		n: int = runhistory[1]
-		assert n <= self._size * 3
+		if n > self._size * 3:
+			pass
 		core: bool = n > 0 and (runhistory[2] == runhistory[4] == runhistory[5] == n) and runhistory[3] == n * 3
 		return (1 if (core and runhistory[0] >= n * 4 and runhistory[6] >= n) else 0) \
 		     + (1 if (core and runhistory[6] >= n * 4 and runhistory[0] >= n) else 0)

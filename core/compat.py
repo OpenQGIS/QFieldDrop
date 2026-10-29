@@ -10,9 +10,9 @@ from qgis.PyQt.QtWidgets import (
 )
 
 try:
-    from qgis.PyQt.QtGui import QAction
+    from qgis.PyQt.QtGui import QAction  # noqa: F401
 except ImportError:
-    from qgis.PyQt.QtWidgets import QAction
+    from qgis.PyQt.QtWidgets import QAction  # noqa: F401
 
 # Qt6 移除了 Python 2 时代的 exec_() 方法，只保留标准的 exec()
 if not hasattr(QMenu, "exec_") and hasattr(QMenu, "exec"):
@@ -93,6 +93,6 @@ def set_window_stay_on_top(widget, on_top: bool):
             pass
 
     # 非 Windows 或 Win32 API 失败回退
-    widget.setWindowFlag(Qt.WindowStaysOnTopHint, on_top)
+    widget.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
     widget.show()
     return True

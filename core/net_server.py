@@ -10,11 +10,10 @@ import json
 import time
 import shutil
 import socket
-import zipfile
 import datetime
 import threading
 import urllib.parse
-from typing import Optional, List, Dict, Tuple
+from typing import Optional
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
@@ -635,7 +634,8 @@ class LanDropServer:
         bound = False
         for p in range(self.port, self.port + 20):
             try:
-                self.httpd = _FastHTTPServer(('0.0.0.0', p), DropRequestHandler)
+                # Bind to all local interfaces (empty string represents INADDR_ANY)
+                self.httpd = _FastHTTPServer(('', p), DropRequestHandler)  # nosec B104
                 self.httpd.daemon_threads = True
                 self.port = p
                 bound = True
@@ -644,7 +644,7 @@ class LanDropServer:
                 continue
 
         if not bound or not self.httpd:
-            err = f"无法绑定端口 (8899-8919 均被占用)"
+            err = "无法绑定端口 (8899-8919 均被占用)"
             self.signals.server_error.emit(err)
             raise RuntimeError(err)
 

@@ -88,7 +88,7 @@ class QFieldSendDialog(QDialog):
         self.resize(490, 410)
         self.setMinimumSize(450, 380)
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
 
         self._cleaned_up = False
         self.is_ready = False
@@ -161,10 +161,10 @@ class QFieldSendDialog(QDialog):
         pack_layout = QVBoxLayout(self.pack_page)
         pack_layout.setContentsMargins(16, 24, 16, 24)
         pack_layout.setSpacing(12)
-        pack_layout.setAlignment(Qt.AlignCenter)
+        pack_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.pack_status_lbl = QLabel("正在整理工程图层与依赖文件...")
-        self.pack_status_lbl.setAlignment(Qt.AlignCenter)
+        self.pack_status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pack_font = self.pack_status_lbl.font()
         pack_font.setBold(True)
         self.pack_status_lbl.setFont(pack_font)
@@ -177,7 +177,7 @@ class QFieldSendDialog(QDialog):
         pack_layout.addWidget(self.pack_progress)
 
         self.pack_file_lbl = QLabel("正在准备数据压缩...")
-        self.pack_file_lbl.setAlignment(Qt.AlignCenter)
+        self.pack_file_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pack_file_lbl.setStyleSheet("color: palette(placeholder-text);")
         pack_layout.addWidget(self.pack_file_lbl)
 
@@ -203,12 +203,12 @@ class QFieldSendDialog(QDialog):
         ip_row = QHBoxLayout()
         ip_row.addWidget(QLabel("投送网卡:"))
         self.ip_combo = QComboBox()
-        self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.ip_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for idx, item in enumerate(NetworkHelper.get_all_lan_ips()):
             self.ip_combo.addItem(item['label'], item['ip'])
-            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ToolTipRole)
+            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ItemDataRole.ToolTipRole)
         if self.ip_combo.count() > 0:
-            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ToolTipRole))
+            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ItemDataRole.ToolTipRole))
         self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
         ip_row.addWidget(self.ip_combo, 1)
 
@@ -220,7 +220,7 @@ class QFieldSendDialog(QDialog):
         net_layout.addLayout(ip_row)
 
         self.mdns_lbl = QLabel(f"局域网通用地址: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
-        self.mdns_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mdns_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         tip_f = self.mdns_lbl.font()
         tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
         self.mdns_lbl.setFont(tip_f)
@@ -250,7 +250,7 @@ class QFieldSendDialog(QDialog):
         self.status_box = QLabel("正在初始化服务...")
         bottom_row.addWidget(self.status_box, 1)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
 
@@ -354,7 +354,7 @@ class QFieldSendDialog(QDialog):
     def _on_ip_combo_changed(self):
         curr_idx = self.ip_combo.currentIndex()
         if curr_idx >= 0:
-            tip = self.ip_combo.itemData(curr_idx, Qt.ToolTipRole)
+            tip = self.ip_combo.itemData(curr_idx, Qt.ItemDataRole.ToolTipRole)
             if tip:
                 self.ip_combo.setToolTip(tip)
         ip = self._get_selected_ip()

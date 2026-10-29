@@ -16,7 +16,7 @@ import tempfile
 import zipfile
 from typing import Dict, List, Any, Optional, Callable
 
-from qgis.core import QgsProject, QgsMapLayer
+from qgis.core import QgsProject
 
 
 EXCLUDED_EXTENSIONS = {
@@ -282,8 +282,8 @@ class ProjectPackager:
         nodes = []
         for dataset in datasets.values():
             ref_count = len(dataset['layers'])
-            layer_names = [l.name() for l in dataset['layers']]
-            layer_ids = [l.id() for l in dataset['layers']]
+            layer_names = [lyr.name() for lyr in dataset['layers']]
+            layer_ids = [lyr.id() for lyr in dataset['layers']]
             primary_layer = dataset['layers'][0] if dataset['layers'] else None
 
             # Single shape for physical dataset, combining layer names
@@ -698,7 +698,7 @@ class ProjectPackager:
             from qgis.core import Qgis
             if hasattr(Qgis, 'FilePathType') and hasattr(project, 'setFilePathStorage'):
                 project.setFilePathStorage(Qgis.FilePathType.Relative)
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
             pass
 
         project.write()

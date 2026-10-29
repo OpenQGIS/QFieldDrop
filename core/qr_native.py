@@ -9,15 +9,10 @@ import os
 import functools
 from typing import List, Optional
 from qgis.PyQt.QtGui import QImage, QColor, QPainter, QPixmap, QPen
-from qgis.PyQt.QtCore import Qt, QRect, QRectF
+from qgis.PyQt.QtCore import Qt, QRectF
 
 # Qt5 / Qt6 Format_RGB32 compatibility
-if hasattr(QImage, 'Format_RGB32'):
-    _FMT_RGB32 = QImage.Format_RGB32
-elif hasattr(QImage, 'Format') and hasattr(QImage.Format, 'Format_RGB32'):
-    _FMT_RGB32 = QImage.Format.Format_RGB32
-else:
-    _FMT_RGB32 = 4  # Standard Qt enum value for Format_RGB32
+_FMT_RGB32 = QImage.Format.Format_RGB32
 
 
 @functools.lru_cache(maxsize=64)
@@ -99,7 +94,7 @@ def render_qr_to_qimage(
 
     painter = QPainter(image)
     try:
-        painter.setPen(Qt.NoPen if hasattr(Qt, 'NoPen') else Qt.PenStyle.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(18, 20, 24))  # Premium dark slate / black
 
         # 1. Draw QR code modules
@@ -116,7 +111,7 @@ def render_qr_to_qimage(
 
         # 2. Draw optional center logo badge
         if icon_path and os.path.exists(icon_path):
-            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             badge_size = max(26, int(round(target_size * 0.22)))
             cx = target_size / 2.0
             cy = target_size / 2.0

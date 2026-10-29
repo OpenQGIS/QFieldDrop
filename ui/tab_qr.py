@@ -15,7 +15,7 @@ from qgis.PyQt.QtCore import Qt
 from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from .icon_helper import get_icon, get_icon_path
 
-ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter
 
 
 class QrDropTab(QWidget):
@@ -44,12 +44,12 @@ class QrDropTab(QWidget):
         self.qr_deeplink_lbl.setStyleSheet(
             "background-color: #FFFFFF; border: 1px solid palette(mid); border-radius: 4px;"
         )
-        layout.addWidget(self.qr_deeplink_lbl, 0, Qt.AlignVCenter)
+        layout.addWidget(self.qr_deeplink_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Right Column: Instructions & Action Button
         right_col = QVBoxLayout()
         right_col.setSpacing(8)
-        right_col.setAlignment(Qt.AlignVCenter)
+        right_col.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         lbl_desc = QLabel(
             "<div style='line-height: 145%;'>"
@@ -65,7 +65,7 @@ class QrDropTab(QWidget):
         btn_copy_dl.setIcon(get_icon("link"))
         btn_copy_dl.setToolTip("复制 qfield:// 深度唤醒链接，发至手机点击可直接唤醒 QField")
         btn_copy_dl.clicked.connect(self._copy_deeplink)
-        right_col.addWidget(btn_copy_dl, 0, Qt.AlignLeft)
+        right_col.addWidget(btn_copy_dl, 0, Qt.AlignmentFlag.AlignLeft)
 
         lbl_tip = QLabel(
             "<small style='color: #94A3B8;'>ℹ️ 手机与电脑需连入同一 Wi-Fi 或热点。若相机不支持调起 App，可切换至【安装包下载】扫码。</small>"

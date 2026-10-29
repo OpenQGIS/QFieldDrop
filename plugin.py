@@ -232,7 +232,7 @@ class QFieldDropPlugin:
             self.dlg_send.activateWindow()
         except Exception as e:
             self.iface.messageBar().pushMessage(
-                "QFieldDrop", f"打开投送对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+                "QFieldDrop", f"打开投送对话框失败: {str(e)}", level=Qgis.MessageLevel.Warning, duration=5
             )
 
     def run_receive(self):
@@ -249,7 +249,7 @@ class QFieldDropPlugin:
             self.dlg_receive.activateWindow()
         except Exception as e:
             self.iface.messageBar().pushMessage(
-                "QFieldDrop", f"打开成果接收对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+                "QFieldDrop", f"打开成果接收对话框失败: {str(e)}", level=Qgis.MessageLevel.Warning, duration=5
             )
 
     def run_mobile_install(self):
@@ -288,7 +288,7 @@ class QFieldDropPlugin:
             self.mobile_dlg.activateWindow()
         except Exception as e:
             self.iface.messageBar().pushMessage(
-                "QFieldDrop", f"打开助手安装对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+                "QFieldDrop", f"打开助手安装对话框失败: {str(e)}", level=Qgis.MessageLevel.Warning, duration=5
             )
 
     def _is_send_dialog_active(self) -> bool:

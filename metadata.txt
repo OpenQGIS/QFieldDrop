@@ -1,9 +1,9 @@
 [general]
-name=QField LAN Drop
+name=QFieldDrop
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
-description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links (Beta Release).
-version=1.2.0-beta
+description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links.
+version=1.2.1
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 about=Transfer QGIS projects directly to mobile QField over local Wi-Fi or mobile hotspot using QR codes and qfield:// deep links. Works without cloud uploads, cables, or external pip dependencies.
@@ -12,14 +12,15 @@ tracker=https://github.com/OpenQGIS/QFieldDrop/issues
 repository=https://github.com/OpenQGIS/QFieldDrop
 hasProcessingProvider=no
 category=Plugins
-experimental=True
+experimental=False
 deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
-  Version 1.2.0-beta:
-  - 🎯 纯粹极简扫码互传：全面瘦身界面，剥离复杂选项卡与冗余帮助文档，聚焦于最直接的手机相机扫码唤醒出工（Drop Out）与扫码成果回传（Drop In）。 / Streamlined single-screen QR drop experience, stripping complex tabs and documentation to focus strictly on camera deep-link dispatch and mobile survey return.
-  - 📱 零等待即开即扫：投送、接收与助手安装窗口全面升级为轻量单屏卡片，加载耗时降至极限，秒级开箱即用。 / Instant single-card modal dialogs with zero tab-switching overhead.
+  Version 1.2.1:
+  - ⚡ QGIS 4 / Qt6 作用域枚举深度兼容：全量重构 55 处 PyQt6 Scoped Enums 与强类型枚举，完美适配 QGIS 3.x (Qt5) 与 QGIS 4.x (Qt6)。 / Full Qt6 scoped enum compatibility for QGIS 3 and QGIS 4.
+  - 🛡️ 官方代码安全合规加固：全面消除 Bandit 39 项安全隐患（0 漏洞、0 告警），重构跨平台文件定位为 Qt 原生 QDesktopServices。 / Zero Bandit security vulnerabilities and hardened cross-platform desktop integration.
+  - 🎯 纯粹极简扫码互传：全面瘦身单屏卡片界面，聚焦最直接的手机相机扫码唤醒出工（Drop Out）与成果扫码回传（Drop In）。 / Streamlined zero-overhead QR drop workflow.
 
   Version 1.1.4:
   - 🌐 极简下载地址与秒级扫码：下载直链优化为 /project.zip，移除繁琐的中文 URL 转义，大幅降低二维码点阵密度并提升手机扫码识别率；保留 RFC 6266 标准标头确保手机下载后仍自动保存为真实中文工程名。 / Streamlined download URL to clean /project.zip alias, removing percent-encoded Chinese characters to produce lower-density, faster-scanning QR codes while retaining RFC 6266 automatic filename decoding.

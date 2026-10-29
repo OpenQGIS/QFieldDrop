@@ -8,20 +8,17 @@ Native QGIS Desktop UI style:
 """
 
 import os
-import sys
-import platform
 import shutil
 import zipfile
-import subprocess
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer
 from qgis.PyQt.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox,
-    QTabWidget, QMenu, QAction, QSizePolicy
+    QMenu, QSizePolicy
 )
 from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtWidgets import QShortcut
@@ -32,7 +29,7 @@ from ..core.qr_native import generate_qr_matrix, render_qr_to_qpixmap
 from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon, get_icon_path
 
-ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter
 
 
 class ElidedLabel(QLabel):
@@ -41,7 +38,7 @@ class ElidedLabel(QLabel):
         super().__init__(parent)
         self._full_text = text
         self.setToolTip(text)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setWordWrap(False)
 
     def setText(self, text):
@@ -63,7 +60,7 @@ class ElidedLabel(QLabel):
             return
         metrics = self.fontMetrics()
         avail_w = max(10, self.width() - 4)
-        elided = metrics.elidedText(self._full_text, Qt.ElideMiddle, avail_w)
+        elided = metrics.elidedText(self._full_text, Qt.TextElideMode.ElideMiddle, avail_w)
         super().setText(elided)
 
 
@@ -124,7 +121,7 @@ class QFieldReceiveDialog(QDialog):
         self.setWindowTitle("QField 成果接收 - 手机外业回传 (Drop In)")
         self.resize(480, 500)
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
 
         self._cleaned_up = False
         self.server: Optional[LanDropServer] = None
@@ -210,23 +207,23 @@ class QFieldReceiveDialog(QDialog):
         self.qr_label.setFixedSize(145, 145)
         self.qr_label.setAlignment(ALIGN_CENTER)
         self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid); border-radius: 4px;")
-        web_layout.addWidget(self.qr_label, 0, Qt.AlignVCenter)
+        web_layout.addWidget(self.qr_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Right Column: Network selector + Tip + URL + Copy Button
         right_col = QVBoxLayout()
         right_col.setSpacing(6)
-        right_col.setAlignment(Qt.AlignVCenter)
+        right_col.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # IP Selection Row
         ip_row = QHBoxLayout()
         ip_row.addWidget(QLabel("接收网卡:"))
         self.ip_combo = QComboBox()
-        self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.ip_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for idx, item in enumerate(NetworkHelper.get_all_lan_ips()):
             self.ip_combo.addItem(item['label'], item['ip'])
-            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ToolTipRole)
+            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ItemDataRole.ToolTipRole)
         if self.ip_combo.count() > 0:
-            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ToolTipRole))
+            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ItemDataRole.ToolTipRole))
         self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
         ip_row.addWidget(self.ip_combo, 1)
         right_col.addLayout(ip_row)
@@ -252,7 +249,7 @@ class QFieldReceiveDialog(QDialog):
         btn_copy_upload = QPushButton("复制回传网址")
         btn_copy_upload.setIcon(get_icon("copy"))
         btn_copy_upload.clicked.connect(self._copy_upload_url)
-        right_col.addWidget(btn_copy_upload, 0, Qt.AlignLeft)
+        right_col.addWidget(btn_copy_upload, 0, Qt.AlignmentFlag.AlignLeft)
 
         web_layout.addLayout(right_col, 1)
         layout.addWidget(qr_group)
@@ -265,14 +262,14 @@ class QFieldReceiveDialog(QDialog):
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["时间", "成果文件", "大小", "回传来源"])
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
-        stretch_mode = QHeaderView.Stretch if hasattr(QHeaderView, 'Stretch') else QHeaderView.ResizeMode.Stretch
+        stretch_mode = QHeaderView.ResizeMode.Stretch
         self.table.horizontalHeader().setSectionResizeMode(1, stretch_mode)
         self.table.setFixedHeight(140)
-        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
-        QShortcut(QKeySequence.Delete, self.table, self._delete_selected_record)
+        QShortcut(QKeySequence.StandardKey.Delete, self.table, self._delete_selected_record)
         rec_layout.addWidget(self.table)
 
         tbl_btn_row = QHBoxLayout()
@@ -315,7 +312,7 @@ class QFieldReceiveDialog(QDialog):
         self.status_box = QLabel(f"成果接收服务已就绪，正在监听局域网端口 :{self.port}")
         bottom_row.addWidget(self.status_box, 1)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
 
@@ -326,7 +323,7 @@ class QFieldReceiveDialog(QDialog):
     def _on_ip_combo_changed(self):
         curr_idx = self.ip_combo.currentIndex()
         if curr_idx >= 0:
-            tip = self.ip_combo.itemData(curr_idx, Qt.ToolTipRole)
+            tip = self.ip_combo.itemData(curr_idx, Qt.ItemDataRole.ToolTipRole)
             if tip:
                 self.ip_combo.setToolTip(tip)
         self._update_qr()
@@ -421,10 +418,10 @@ class QFieldReceiveDialog(QDialog):
                 self,
                 "拉取成功",
                 f"成功从手机拉回外业更新成果！\n\n保存路径:\n{saved_path}\n\n是否立即打开成果所在文件夹？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
             )
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 self._open_path_in_explorer(dest_dir)
         else:
             QMessageBox.warning(self, "拉取失败", f"未能从手机拉回成果:\n{msg}")
@@ -611,15 +608,9 @@ class QFieldReceiveDialog(QDialog):
     def _open_path_in_explorer(self, path: str):
         if not os.path.exists(path):
             return
-        try:
-            if os.name == 'nt':
-                os.startfile(path)
-            elif sys.platform == 'darwin' or platform.system() == 'Darwin':
-                subprocess.Popen(['open', path])
-            else:
-                subprocess.Popen(['xdg-open', path])
-        except (subprocess.SubprocessError, OSError):
-            pass
+        from qgis.PyQt.QtCore import QUrl
+        from qgis.PyQt.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _find_geodata_files(self, root_dir: str) -> List[str]:
         geo_exts = ('.gpkg', '.shp', '.tif', '.tiff', '.geojson')
@@ -647,7 +638,7 @@ class QFieldReceiveDialog(QDialog):
         menu.addSeparator()
         act_del = menu.addAction(get_icon("trash") or get_icon("alert-triangle"), "删除此归档 (Del)")
 
-        action = menu.exec_(self.table.viewport().mapToGlobal(pos))
+        action = menu.exec(self.table.viewport().mapToGlobal(pos))
         if action == act_load:
             self._load_selected_into_qgis()
         elif action == act_open:
@@ -672,10 +663,10 @@ class QFieldReceiveDialog(QDialog):
             f"📄 文件名: {fname}\n"
             f"📁 路径: {fpath}\n\n"
             f"⚠️ 警告：该操作将直接从本地磁盘中彻底物理删除此成果，无法恢复！",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         try:
@@ -761,5 +752,5 @@ class QFieldReceiveDialog(QDialog):
     def __del__(self):
         try:
             self._cleanup()
-        except Exception:
+        except (RuntimeError, AttributeError, TypeError):
             pass

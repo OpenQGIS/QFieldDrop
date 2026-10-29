@@ -9,7 +9,7 @@ import os
 import shlex
 import shutil
 import tempfile
-import subprocess
+import subprocess  # nosec B404
 from typing import List, Tuple, Optional
 from qgis.PyQt.QtCore import QSettings
 
@@ -82,7 +82,7 @@ class AdbPusher:
             return []
 
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 [adb_bin, "devices"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -108,7 +108,7 @@ class AdbPusher:
             return False, "系统中未检测到 adb 命令，请先配置或安装 Android Platform Tools。"
 
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 [adb_bin, "connect", ip_port],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -177,7 +177,7 @@ class AdbPusher:
 
             # 1. Create target directory safely
             mkdir_cmd = base_cmd + ["shell", f"mkdir -p {quoted_remote}"]
-            subprocess.run(
+            subprocess.run(  # nosec B603
                 mkdir_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -187,7 +187,7 @@ class AdbPusher:
 
             # 2. Push clean staged folder contents
             push_cmd = base_cmd + ["push", stage_dir.rstrip('\\/') + "/.", remote_target]
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 push_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -238,14 +238,14 @@ class AdbPusher:
             quoted_rpath = shlex.quote(rpath)
             chk = base_cmd + ["shell", f"[ -e {quoted_rpath} ] && echo FOUND"]
             try:
-                res = subprocess.run(
+                res = subprocess.run(  # nosec B603
                     chk, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
                 )
                 if "FOUND" in res.stdout:
                     found_remote = rpath
                     break
-            except Exception:
+            except (subprocess.SubprocessError, OSError):
                 continue
 
         if not found_remote:
@@ -255,7 +255,7 @@ class AdbPusher:
         pull_cmd = base_cmd + ["pull", found_remote, target_local]
 
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 pull_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -294,7 +294,7 @@ class AdbPusher:
 
         mkdir_cmd = base_cmd + ["shell", f"mkdir -p {shlex.quote(remote_target)}"]
         try:
-            subprocess.run(
+            subprocess.run(  # nosec B603
                 mkdir_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 timeout=10, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
@@ -303,7 +303,7 @@ class AdbPusher:
 
         push_cmd = base_cmd + ["push", f"{plugin_src_dir}/.", remote_target]
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 push_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
