@@ -18,17 +18,17 @@ tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
   Version 1.2.2:
-  - 🎨 Flake8 代码格式与缩进零警告：彻底修复二维码引擎中 5 处混用空格与制表符缩进问题（E101 mixed spaces/tabs），代码质量与安全全量通过。 / Fixed E101 indentation issues in QR engine, achieving full clean Flake8 code quality.
-  - 🏷️ 插件品牌全域统一：正式将插件官方显示名称统一为 QFieldDrop。 / Synchronized official plugin name to QFieldDrop.
+  - 修复二维码生成模块中制表符与空格混用的缩进问题（Flake8 E101）。 / Fix mixed tab and space indentation in QR code module (Flake8 E101).
+  - 调整 QGIS 4 / Qt6 枚举调用方式为强类型作用域枚举，保持 QGIS 3.x 与 4.x 双版本兼容。 / Update Qt enum references to scoped enums for dual QGIS 3.x and 4.x compatibility.
+  - 修复静态代码安全扫描报告中的潜在告警项，通过 Bandit 安全检查。 / Resolve static analysis findings to pass Bandit security checks.
+  - 统一插件在 QGIS 中的显示名称为 QFieldDrop。 / Standardize official plugin display name to QFieldDrop.
 
-  Version 1.2.1:
-  - ⚡ QGIS 4 / Qt6 作用域枚举深度兼容：全量重构 55 处 PyQt6 Scoped Enums 与强类型枚举，完美适配 QGIS 3.x (Qt5) 与 QGIS 4.x (Qt6)。 / Full Qt6 scoped enum compatibility for QGIS 3 and QGIS 4.
-  - 🛡️ 官方代码安全合规加固：全面消除 Bandit 39 项安全隐患（0 漏洞、0 告警），重构跨平台文件定位为 Qt 原生 QDesktopServices。 / Zero Bandit security vulnerabilities and hardened cross-platform desktop integration.
-  - 🎯 纯粹极简扫码互传：全面瘦身单屏卡片界面，聚焦最直接的手机相机扫码唤醒出工（Drop Out）与成果扫码回传（Drop In）。 / Streamlined zero-overhead QR drop workflow.
+  Version 1.2.0:
+  - 简化投送与接收弹窗布局为单屏卡片，减少界面层级与选项切换。 / Simplify send and receive dialogs into single-card layouts to reduce tab switching.
 
   Version 1.1.4:
-  - 🌐 极简下载地址与秒级扫码：下载直链优化为 /project.zip，移除繁琐的中文 URL 转义，大幅降低二维码点阵密度并提升手机扫码识别率；保留 RFC 6266 标准标头确保手机下载后仍自动保存为真实中文工程名。 / Streamlined download URL to clean /project.zip alias, removing percent-encoded Chinese characters to produce lower-density, faster-scanning QR codes while retaining RFC 6266 automatic filename decoding.
-  - 🗂️ 扫码投送子 Tab 栏重构：将相机唤醒、浏览器下载与手动离线通道重构为顶部水平子选项卡，界面空间充裕自然，彻底杜绝元素折行挤压。 / Reorganized QR dispatching into 3 top-aligned horizontal sub-tabs for clean layout and improved readability.
-  - 📱 手机助手安装器重构：将 QField 伴侣插件安装对话框升级为双 Tab 结构（扫码直装 / ADB 数据线写入），消除白边残留并优化展示排版。 / Reorganized mobile installer into 2 clean tabs with fixed vertical margins and aligned layout.
-  - 📁 成果接收路径展示优化：存储目录支持单行智能居中截断（ElidedLabel）与悬停提示，新增紧邻的【打开】按钮并独立关联工程行，排版工整不溢出。 / Enhanced storage path presentation in receive dialog with middle-elided text, hover tooltips, and adjacent open button.
-  - 🛡️ 线程生命周期与 QGIS 防崩加固：在所有对话框销毁、关闭及异常退出时全面部署安全断开与优雅退出守护，彻底杜绝 QThread 崩溃。 / Hardened worker thread detachment and safe termination guards to prevent QThread crashes on dialog close.
+  - 下载直链改用固定别名 /project.zip 并附带 RFC 6266 文件名头，降低二维码点阵密度并加快扫码识别。 / Route project downloads through clean /project.zip alias with RFC 6266 filename headers to reduce QR density.
+  - 投送窗口拆分为扫码唤醒、浏览器下载与离线直传三个独立子标签。 / Organize QR dispatching into 3 dedicated sub-tabs: camera wake, browser download, and offline transfer.
+  - 伴侣插件安装窗口支持扫码直装与 ADB 数据线写入两种安装方式。 / Support both QR scan install and ADB cable write in companion installer.
+  - 接收列表中的存储路径支持文字居中截断并提供打开目录按钮。 / Add middle-elided path display with direct folder open button in received projects table.
+  - 优化对话框关闭时的后台线程清理与退出保护，避免偶发崩溃。 / Clean up background worker threads on dialog close to prevent unexpected crashes.
