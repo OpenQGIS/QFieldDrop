@@ -21,7 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QApplication, QComboBox, QFileDialog, QDialogButtonBox,
-    QTabWidget, QMenu, QAction
+    QTabWidget, QMenu, QAction, QSizePolicy
 )
 from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtWidgets import QShortcut
@@ -33,6 +33,38 @@ from ..core.adb_pusher import AdbPusher
 from .icon_helper import get_icon, get_icon_path
 
 ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+
+
+class ElidedLabel(QLabel):
+    """A QLabel that automatically elides middle text when overflowing its layout width."""
+    def __init__(self, text="", parent=None):
+        super().__init__(parent)
+        self._full_text = text
+        self.setToolTip(text)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.setWordWrap(False)
+
+    def setText(self, text):
+        self._full_text = text
+        self.setToolTip(text)
+        self._update_elided()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_elided()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._update_elided()
+
+    def _update_elided(self):
+        if not self._full_text:
+            super().setText("")
+            return
+        metrics = self.fontMetrics()
+        avail_w = max(10, self.width() - 4)
+        elided = metrics.elidedText(self._full_text, Qt.ElideMiddle, avail_w)
+        super().setText(elided)
 
 
 class AdbPullWorker(QThread):
@@ -72,13 +104,25 @@ class UnzipWorker(QThread):
             self.finished_signal.emit(False, str(e), self.extract_dir, self.action_tag)
 
 
+class AdbDetectWorker(QThread):
+    finished_signal = pyqtSignal(bool, list)  # (adb_available, devices_list)
+
+    def run(self):
+        try:
+            avail = AdbPusher.is_adb_available()
+            devices = AdbPusher.list_devices() if avail else []
+            self.finished_signal.emit(avail, devices)
+        except Exception:
+            self.finished_signal.emit(False, [])
+
+
 class QFieldReceiveDialog(QDialog):
     """Dedicated dialog for receiving field survey updates from mobile devices."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("QField 成果接收 - 手机外业回传 (Drop In)")
-        self.resize(540, 500)
+        self.resize(480, 500)
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -111,7 +155,8 @@ class QFieldReceiveDialog(QDialog):
     def _init_server(self):
         """Starts background server listening for /upload requests."""
         import tempfile
-        dummy_dist = tempfile.gettempdir()
+        dummy_dist = os.path.join(tempfile.gettempdir(), "qfield_drop_recv_srv")
+        os.makedirs(dummy_dist, exist_ok=True)
         self.server = LanDropServer(
             serve_dir=dummy_dist,
             zip_filename="dummy.zip",
@@ -129,17 +174,29 @@ class QFieldReceiveDialog(QDialog):
 
         # 1. Top Info Box: Project & Return Storage
         info_group = QGroupBox("成果归档配置")
-        info_layout = QHBoxLayout(info_group)
-        info_layout.setContentsMargins(9, 8, 9, 8)
+        info_layout = QVBoxLayout(info_group)
+        info_layout.setContentsMargins(10, 8, 10, 8)
+        info_layout.setSpacing(4)
 
-        lbl_dir = QLabel(f"关联工程: <b>{self.project_name}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 存储目录: <code>{self.upload_dir}</code>")
-        lbl_dir.setWordWrap(True)
-        info_layout.addWidget(lbl_dir, 1)
+        # Row 1: Project Name
+        lbl_proj = QLabel(f"关联工程: <b>{self.project_name}</b>")
+        info_layout.addWidget(lbl_proj)
 
-        btn_open_root = QPushButton("打开归档目录")
+        # Row 2: Storage Path (Elided) + Open Button on right
+        path_row = QHBoxLayout()
+        path_row.setSpacing(8)
+
+        lbl_path = ElidedLabel(f"存储目录: {self.upload_dir}")
+        lbl_path.setStyleSheet("color: #475569;")
+        path_row.addWidget(lbl_path, 1)
+
+        btn_open_root = QPushButton("打开")
         btn_open_root.setIcon(get_icon("folder"))
+        btn_open_root.setToolTip(f"在系统文件管理器中打开归档目录：\n{self.upload_dir}")
         btn_open_root.clicked.connect(self._open_return_root_folder)
-        info_layout.addWidget(btn_open_root)
+        path_row.addWidget(btn_open_root)
+
+        info_layout.addLayout(path_row)
 
         layout.addWidget(info_group)
 
@@ -169,13 +226,20 @@ class QFieldReceiveDialog(QDialog):
         ip_row.addWidget(QLabel("接收网卡:"))
         self.ip_combo = QComboBox()
         self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        for item in NetworkHelper.get_all_lan_ips():
+        for idx, item in enumerate(NetworkHelper.get_all_lan_ips()):
             self.ip_combo.addItem(item['label'], item['ip'])
-        self.ip_combo.currentIndexChanged.connect(self._update_qr)
+            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ToolTipRole)
+        if self.ip_combo.count() > 0:
+            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ToolTipRole))
+        self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
         ip_row.addWidget(self.ip_combo, 1)
         right_col.addLayout(ip_row)
 
-        qr_tip = QLabel("手机相机直接扫码，在网页选择成果极速上传；或在手机 QField 中一键回传。")
+        qr_tip = QLabel(
+            "<b>扫码回传说明:</b><br>"
+            "• <b>推荐:</b> 手机 QField 插件内点击 <b>[📷 扫码]</b> 自动配对回传<br>"
+            "• <b>备选:</b> 手机相机扫码打开网页，选择压缩包或照片上传"
+        )
         qr_tip.setWordWrap(True)
         tip_f = qr_tip.font()
         tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
@@ -191,7 +255,7 @@ class QFieldReceiveDialog(QDialog):
         btn_copy_upload = QPushButton("复制回传网址")
         btn_copy_upload.setIcon(get_icon("copy"))
         btn_copy_upload.clicked.connect(self._copy_upload_url)
-        right_col.addWidget(btn_copy_upload)
+        right_col.addWidget(btn_copy_upload, 0, Qt.AlignLeft)
 
         web_layout.addLayout(right_col, 1)
         self.tabs.addTab(tab_web, get_icon("qr"), "无线扫码 / QField 直传")
@@ -250,22 +314,22 @@ class QFieldReceiveDialog(QDialog):
 
         tbl_btn_row = QHBoxLayout()
 
-        btn_load_qgis = QPushButton("载入至当前工程")
-        btn_load_qgis.setIcon(get_icon("add"))
-        btn_load_qgis.setDefault(True)
-        btn_load_qgis.setToolTip("自动解析所选成果中的矢量或栅格图层并直接上图对比")
-        btn_load_qgis.clicked.connect(self._load_selected_into_qgis)
-        tbl_btn_row.addWidget(btn_load_qgis)
+        self.btn_load = QPushButton("载入至当前工程")
+        self.btn_load.setIcon(get_icon("add"))
+        self.btn_load.setDefault(True)
+        self.btn_load.setToolTip("自动解析所选成果中的矢量或栅格图层并直接上图对比")
+        self.btn_load.clicked.connect(self._load_selected_into_qgis)
+        tbl_btn_row.addWidget(self.btn_load)
 
         btn_open_selected = QPushButton("打开所在目录")
         btn_open_selected.setIcon(get_icon("folder"))
         btn_open_selected.clicked.connect(self._open_selected_file_dir)
         tbl_btn_row.addWidget(btn_open_selected)
 
-        btn_unzip_selected = QPushButton("解压成果包")
-        btn_unzip_selected.setIcon(get_icon("archive"))
-        btn_unzip_selected.clicked.connect(self._unzip_selected_file)
-        tbl_btn_row.addWidget(btn_unzip_selected)
+        self.btn_unzip = QPushButton("解压成果包")
+        self.btn_unzip.setIcon(get_icon("archive"))
+        self.btn_unzip.clicked.connect(self._unzip_selected_file)
+        tbl_btn_row.addWidget(self.btn_unzip)
 
         btn_delete_selected = QPushButton("删除归档")
         btn_delete_selected.setIcon(get_icon("trash") if get_icon("trash") else get_icon("alert-triangle"))
@@ -296,6 +360,14 @@ class QFieldReceiveDialog(QDialog):
 
         self._update_qr()
 
+    def _on_ip_combo_changed(self):
+        curr_idx = self.ip_combo.currentIndex()
+        if curr_idx >= 0:
+            tip = self.ip_combo.itemData(curr_idx, Qt.ToolTipRole)
+            if tip:
+                self.ip_combo.setToolTip(tip)
+        self._update_qr()
+
     def _get_selected_ip(self) -> str:
         ip = self.ip_combo.currentData()
         if not ip:
@@ -303,8 +375,11 @@ class QFieldReceiveDialog(QDialog):
         return ip or "127.0.0.1"
 
     def _update_qr(self):
+        import urllib.parse
         ip = self._get_selected_ip()
-        self.current_upload_url = f"http://{ip}:{self.port}/upload"
+        proj_q = urllib.parse.quote(self.project_name) if self.project_name else ""
+        query_suffix = f"?proj={proj_q}" if proj_q else ""
+        self.current_upload_url = f"http://{ip}:{self.port}/upload{query_suffix}"
         if hasattr(self, 'url_label'):
             self.url_label.setText(self.current_upload_url)
         matrix = generate_qr_matrix(self.current_upload_url, ecc='Q')
@@ -323,12 +398,21 @@ class QFieldReceiveDialog(QDialog):
 
     def _refresh_adb_devices(self):
         self.dev_combo.clear()
-        if not AdbPusher.is_adb_available():
+        self.dev_combo.addItem("正在检测 Android 设备...", "")
+        self.btn_pull.setEnabled(False)
+        self._adb_detect_worker = AdbDetectWorker()
+        self._adb_detect_worker.finished_signal.connect(self._on_adb_detected)
+        self._adb_detect_worker.start()
+
+    def _on_adb_detected(self, avail: bool, devices: list):
+        if getattr(self, '_cleaned_up', False):
+            return
+        self.dev_combo.clear()
+        if not avail:
             self.dev_combo.addItem("未检测到 adb (请点击右侧配置)", "")
             self.btn_pull.setEnabled(False)
             return
 
-        devices = AdbPusher.list_devices()
         if not devices:
             self.dev_combo.addItem("未连接任何 Android 设备", "")
             self.btn_pull.setEnabled(False)
@@ -663,6 +747,38 @@ class QFieldReceiveDialog(QDialog):
             return
         self._cleaned_up = True
 
+        # Safely detach and wait for background workers to prevent Qt fatal C++ abort:
+        # "QThread: Destroyed while thread is still running"
+        worker = getattr(self, '_adb_detect_worker', None)
+        if worker:
+            try:
+                worker.finished_signal.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            if worker.isRunning():
+                worker.wait(400)
+            self._adb_detect_worker = None
+
+        e_worker = getattr(self, 'extract_worker', None)
+        if e_worker:
+            try:
+                e_worker.finished_signal.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            if e_worker.isRunning():
+                e_worker.wait(400)
+            self.extract_worker = None
+
+        a_worker = getattr(self, 'adb_worker', None)
+        if a_worker:
+            try:
+                a_worker.finished_signal.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            if a_worker.isRunning():
+                a_worker.wait(400)
+            self.adb_worker = None
+
         if self.server:
             try:
                 self.server.stop()
@@ -678,3 +794,9 @@ class QFieldReceiveDialog(QDialog):
     def reject(self):
         self._cleanup()
         super().reject()
+
+    def __del__(self):
+        try:
+            self._cleanup()
+        except Exception:
+            pass

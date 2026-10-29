@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/status-pending%20approval-orange?style=flat&logo=clockify&logoColor=white" alt="Status: Pending Approval">
   <img src="https://img.shields.io/badge/QGIS-3.0%2B-blue?style=flat&logo=qgis&logoColor=white" alt="QGIS 3.0+">
   <img src="https://img.shields.io/badge/QField-2.0%2B%20%7C%203.0%2B-brightgreen?style=flat&logo=android&logoColor=white" alt="QField 2.0+ | 3.0+">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat" alt="MIT License">
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat" alt="AGPL-3.0 License">
 </p>
 
 > ⏳ **项目状态说明 (Project Status)**：  
@@ -45,7 +45,7 @@ QGIS 工具栏:  [ 📤 投送工程至 QField ]   [ 📥 接收 QField 成果 ]
 | **元数据源** | ./metadata.txt | ./mobile/metadata.txt |
 | **宿主环境** | QGIS Desktop (PyQt5 / PyQt6) | QField Mobile (QML / QtQuick / JavaScript) |
 | **版本迭代节奏**| **敏捷高频**（异步防假死重构、局域网协议迭代） | **克制稳健**（现场外业稳定性优先，免除频繁重复安装） |
-| **分发包制品** | QFieldDrop_V-1.1.1.zip (官方纯净包) | QFieldDropMobile_V-1.0.1.zip (直装与沙盒包) |
+| **分发包制品** | QFieldDrop_V-1.1.3.zip (官方纯净包) | QFieldDropMobile_V-1.0.3.zip (直装与沙盒包) |
 
 > 💡 **架构解耦原则**：桌面端的性能调优、跨版本垫片升级或多线程重构**严禁无谓抬升手机端版本号**；两端生命周期完全解耦，构建流水线（uild_clean_release.py）自动独立解析版本并打包。
 
@@ -63,7 +63,7 @@ QFieldDrop/
 ├── i18n_strings.py              # 多语言静态字典与保底机制
 ├── i18n_helper.py               # 多语言加载与动态切换辅助
 ├── README.md                    # 架构与使用指南
-├── LICENSE                      # GNU GPL v3 开源许可证
+├── LICENSE                      # GNU AGPL v3.0 开源许可证
 ├── CHANGELOG.md                 # 语义化双语更新日志
 ├── PROJECT_STRUCTURE.md         # 工程结构与资产四维归类详案
 ├── DISTRIBUTION_GUIDE.md        # 官方插件发布规范与分发指引
@@ -153,5 +153,5 @@ gantt
 
 ## 📄 开源许可 (License)
 
-本项目基于 [MIT License](LICENSE) 开源发布。欢迎提交 Issue 与 Pull Request 共同完善！
+本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)** 超强传染开源协议发布。任何基于本项目的修改、衍生分发或云端网络服务部署，均须以相同 AGPL-3.0 协议公开完整源代码。详情请参阅 [LICENSE](LICENSE) 文件。
 

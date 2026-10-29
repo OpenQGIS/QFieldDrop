@@ -5,22 +5,18 @@ QField LAN Drop - UI Module Exports
 
 from .send_dialog import QFieldSendDialog
 from .receive_dialog import QFieldReceiveDialog
-from .share_dialog import QFieldLanDropDialog
+from .mobile_install_dialog import MobileInstallDialog
 from .tab_qr import QrDropTab
 from .tab_localsend import LocalSendTab
-from .tab_return import ReturnTab
-from .external_layers_dialog import ExternalLayersDialog
 from .treemap_widget import TreeMapWidget
 from .icon_helper import get_icon
 
 __all__ = [
     "QFieldSendDialog",
     "QFieldReceiveDialog",
-    "QFieldLanDropDialog",
+    "MobileInstallDialog",
     "QrDropTab",
     "LocalSendTab",
-    "ReturnTab",
-    "ExternalLayersDialog",
     "TreeMapWidget",
     "get_icon",
 ]

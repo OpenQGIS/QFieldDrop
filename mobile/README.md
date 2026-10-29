@@ -2,7 +2,7 @@
 
 [![QField Compatible](https://img.shields.io/badge/QField-2.0%2B%20%7C%203.0%2B-brightgreen)](https://qfield.org)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue)]()
-[![License](https://img.shields.io/badge/License-GPLv3-green)]()
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 
 **QFieldDrop Mobile** 是配套桌面端 QGIS 插件 [QFieldDrop](https://github.com/OpenQGIS/QFieldDrop) 的移动端协同插件。
 

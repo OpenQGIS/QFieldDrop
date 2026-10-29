@@ -5,9 +5,27 @@ about=Directly send field survey results, updated layers, and photos back to des
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 icon=icon.svg
-version=1.0.1
+version=1.0.3
+qgisMinimumVersion=3.0
 category=Plugins
 tags=qfield, mobile, return, upload, lan, offline
 homepage=https://github.com/OpenQGIS/QFieldDrop
 repository=https://github.com/OpenQGIS/QFieldDrop
 tracker=https://github.com/OpenQGIS/QFieldDrop/issues
+changelog=
+  Version 1.0.3:
+  - 📷 扫码智能配对回传：新增相机扫码识别电脑端二维码功能，自动解析电脑 IP 与目标工程，秒级配对免除手机小键盘手动输入烦恼。 / Added camera QR scanning to automatically parse desktop server IP and match target survey project without manual typing.
+  - 🔗 探测自愈与工程校验：扫码后自动发起联通探测，并校验外业手机工程名是否一致，保障成果精准归档。 / Automatic connectivity probing after QR scan with project identity verification.
+
+  Version 1.0.2:
+  - 🎨 修复选项排版遮挡：重构 RadioButton 单选指示点与文本间距布局，彻底解决移动端回传类型圆点被标题文字覆盖的问题。 / Fixed radio indicator dot being obscured by title text with dedicated coordinate layout and safe gutter.
+  - 🔘 优化触摸交互与互斥分组：引入 ButtonGroup 规范单选互斥，支持整行触控切换，指示点与首行文字垂直居中对齐。 / Added ButtonGroup for reliable mutual exclusion and aligned indicator vertically with title.
+  - ⚡ 实时热打包：电脑端提供最新的插件下载，规避离线安装包旧版缓存。 / Real-time packaging without stale cache.
+
+  Version 1.0.1:
+  - 📦 增量与整包双回传模式：支持外业仅回传修改图层与现场照片（秒级上传），或全量打包回传工程。 / Added Incremental (layers + photos) and Full project return modes.
+  - 🔍 电脑端服务连通性探测：支持在手机端一键探测桌面 QGIS 局域网端口连通状态与错误诊断。 / One-click desktop server ping and reachability diagnostics.
+  - 📊 传输进度与状态反馈：新增外业成果打包与分块回传实时进度条与状态提示。 / Real-time upload progress bar and status feedback.
+
+  Version 1.0.0:
+  - 🚀 初始版本发布：QField 移动端局域网成果回传助手，外业数据无需云端即时交还电脑 QGIS。 / Initial release of QFieldDrop mobile companion plugin.

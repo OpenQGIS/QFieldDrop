@@ -6,6 +6,7 @@ Renders matrix directly to QImage / QPixmap compatible with Qt5 and Qt6.
 """
 
 import os
+import functools
 from typing import List, Optional
 from qgis.PyQt.QtGui import QImage, QColor, QPainter, QPixmap, QPen
 from qgis.PyQt.QtCore import Qt, QRect, QRectF
@@ -19,14 +20,8 @@ else:
     _FMT_RGB32 = 4  # Standard Qt enum value for Format_RGB32
 
 
-def generate_qr_matrix(text: str, ecc: str = 'M') -> List[List[bool]]:
-    """
-    Generate a 2D boolean matrix where True represents a dark module,
-    and False represents a light module.
-    """
-    if not text:
-        return []
-
+@functools.lru_cache(maxsize=64)
+def _generate_qr_matrix_cached(text: str, ecc: str = 'M') -> tuple:
     # 1. Try external qrcode library if available
     try:
         import qrcode
@@ -45,12 +40,12 @@ def generate_qr_matrix(text: str, ecc: str = 'M') -> List[List[bool]]:
         )
         qr.add_data(text)
         qr.make(fit=True)
-        return qr.get_matrix()
+        return tuple(tuple(row) for row in qr.get_matrix())
     except ImportError:
         pass
 
-    # 2. Use embedded pure-Python qrcodegen
-    from .qrcodegen import QrCode
+    # 2. Use embedded pure-Python qrcodegen with fast fixed mask (avoids 8x full-grid penalty scan on UI thread)
+    from .qrcodegen import QrCode, QrSegment
     ecc_map = {
         'L': QrCode.Ecc.LOW,
         'M': QrCode.Ecc.MEDIUM,
@@ -58,13 +53,21 @@ def generate_qr_matrix(text: str, ecc: str = 'M') -> List[List[bool]]:
         'H': QrCode.Ecc.HIGH
     }
     ecc_level = ecc_map.get(ecc.upper(), QrCode.Ecc.MEDIUM)
-    qr = QrCode.encode_text(text, ecc_level)
+    segs = QrSegment.make_segments(text)
+    qr = QrCode.encode_segments(segs, ecc_level, mask=2, boostecl=False)
     size = qr.get_size()
-    matrix = []
-    for y in range(size):
-        row = [qr.get_module(x, y) for x in range(size)]
-        matrix.append(row)
-    return matrix
+    return tuple(tuple(qr.get_module(x, y) for x in range(size)) for y in range(size))
+
+
+def generate_qr_matrix(text: str, ecc: str = 'M') -> List[List[bool]]:
+    """
+    Generate a 2D boolean matrix where True represents a dark module,
+    and False represents a light module.
+    """
+    if not text:
+        return []
+    cached = _generate_qr_matrix_cached(text, (ecc or 'M').upper())
+    return [list(row) for row in cached]
 
 
 def render_qr_to_qimage(

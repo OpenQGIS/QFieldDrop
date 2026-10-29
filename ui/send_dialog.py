@@ -83,6 +83,36 @@ class PackageWorker(QThread):
             self.finished_signal.emit(False, {}, str(e))
 
 
+class TempPackageWorker(QThread):
+    finished_signal = pyqtSignal(bool, dict, str)
+
+    def __init__(self, project_path: str, project_name: str, external_layers: list):
+        super().__init__()
+        self.project_path = project_path
+        self.project_name = project_name
+        self.external_layers = external_layers
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        try:
+            res = ProjectPackager.package_with_external_layers_temp(
+                project=None,
+                is_cancelled=lambda: self._cancelled,
+                project_path=self.project_path,
+                project_name=self.project_name,
+                external_layers=self.external_layers
+            )
+            if self._cancelled:
+                self.finished_signal.emit(False, {}, "沙箱打包已取消")
+            else:
+                self.finished_signal.emit(True, res, "")
+        except Exception as e:
+            self.finished_signal.emit(False, {}, str(e))
+
+
 class QFieldSendDialog(QDialog):
     """Dedicated dialog for packaging and dispatching current QGIS project to phone."""
 
@@ -90,7 +120,7 @@ class QFieldSendDialog(QDialog):
         super().__init__(parent)
         self.initial_tab = initial_tab
         self.setWindowTitle("QField 局域网直传 - 投送至手机 (Drop Out)")
-        self.resize(520, 380)
+        self.resize(480, 380)
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -103,6 +133,8 @@ class QFieldSendDialog(QDialog):
         self.port = 8899
         self.pkg_worker: Optional[PackageWorker] = None
         self.tab_qr: Optional[QrDropTab] = None
+        self.tab_deeplink: Optional[QrDropTab] = None
+        self.tab_http: Optional[QrDropTab] = None
         self.tab_localsend: Optional[LocalSendTab] = None
         self.drawer: Optional[QFrame] = None
         self.treemap: Optional[TreeMapWidget] = None
@@ -382,6 +414,12 @@ class QFieldSendDialog(QDialog):
         self.pack_file_lbl.setText(f"压缩中: {rel_path}")
 
     def _on_pack_finished(self, success: bool, pkg_info: dict, err_msg: str):
+        if getattr(self, '_cleaned_up', False):
+            dist = pkg_info.get('dist_dir') if isinstance(pkg_info, dict) else None
+            if dist and os.path.exists(dist):
+                shutil.rmtree(dist, ignore_errors=True)
+            return
+
         self.btn_refresh.setEnabled(True)
 
         if not success:
@@ -410,19 +448,24 @@ class QFieldSendDialog(QDialog):
             self.btn_toggle_drawer.setStyleSheet("")
             self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图")
 
-        self._refresh_drawer_data()
-        # 默认始终保持紧凑折叠小窗口，仅在用户点击时才展开
-        self._toggle_drawer(False)
+        # 仅当侧边栏已展开时才刷新树图数据，避免默认折叠时在主线程进行无效磁盘扫描与布局计算
+        if self.drawer and self.drawer.isVisible():
+            self._refresh_drawer_data()
 
-        # Start or update server
-        is_first_init = (self.server is None)
+        # Start or update server (reuse active server port without tearing down socket)
+        is_first_init = (self.tabs.count() == 0)
         self._init_server()
 
         if is_first_init:
-            # Tab 0: QR Code Scan & DeepLink
-            self.tab_qr = QrDropTab(self.port, self.pkg_info['zip_filename'], self)
+            # Tab 0: Wireless QR & DeepLink Channels (Option B: 3 Sub-Tabs inside)
+            self.tab_qr = QrDropTab(
+                self.port,
+                self.pkg_info['zip_filename'],
+                zip_path=self.pkg_info['zip_path'],
+                parent=self
+            )
             self.tab_qr.ip_changed.connect(self._on_ip_changed)
-            self.tabs.addTab(self.tab_qr, get_icon("qr"), "扫码唤醒直传")
+            self.tabs.addTab(self.tab_qr, get_icon("qr"), "扫码无线直传")
 
             if self.mdns:
                 self.mdns.update_ip(self.tab_qr.get_selected_ip())
@@ -443,7 +486,11 @@ class QFieldSendDialog(QDialog):
 
             self.tabs.currentChanged.connect(self._on_tab_changed)
         else:
-            self.tab_qr.update_port_and_file(self.port, self.pkg_info['zip_filename'])
+            self.tab_qr.update_port_and_file(
+                self.port,
+                self.pkg_info['zip_filename'],
+                zip_path=self.pkg_info['zip_path']
+            )
             self.tab_localsend.update_package(self.pkg_info['zip_path'], self.pkg_info['zip_filename'])
 
         # Switch to Tabs page
@@ -454,10 +501,10 @@ class QFieldSendDialog(QDialog):
         if not self.pkg_info:
             return
 
-        if self.server and self.server.is_running:
-            return
-
         zip_filename = self.pkg_info['zip_filename']
+        if self.server and self.server.is_running:
+            self.server.update_payload(self.dist_dir, zip_filename)
+            return
         project = QgsProject.instance()
         project_dir = os.path.dirname(project.fileName()) if project.fileName() else ""
         upload_dir = os.path.join(project_dir, "_qfield_return")
@@ -502,11 +549,11 @@ class QFieldSendDialog(QDialog):
             self.drawer.setVisible(False)
             btn_txt = f"查看详细 ({ext_count}) ▶" if ext_count > 0 else "查看详细 ▶"
             self.btn_toggle_drawer.setText(btn_txt)
-            self.setMinimumWidth(520)
+            self.setMinimumWidth(480)
             target_h = max(self.height(), 400)
             if hasattr(self, 'left_widget') and self.left_widget:
-                self.left_widget.setMaximumWidth(500)
-            self.resize(520, target_h)
+                self.left_widget.setMaximumWidth(460)
+            self.resize(480, target_h)
             if hasattr(self, 'left_widget') and self.left_widget:
                 self.left_widget.setMaximumWidth(16777215)
 
@@ -568,7 +615,7 @@ class QFieldSendDialog(QDialog):
         QApplication.processEvents()
 
         try:
-            ProjectPackager.archive_external_layers_to_project(project)
+            ProjectPackager.archive_external_layers_to_project(project, repackage=False)
             QMessageBox.information(
                 self,
                 "归档成功",
@@ -588,25 +635,40 @@ class QFieldSendDialog(QDialog):
             QMessageBox.information(self, "提示", "当前工程所有图层均在工程目录下，无需临时沙箱收集。")
             return
 
+        if project.isDirty():
+            project.write()
+
         self.btn_drawer_temp.setEnabled(False)
         self.btn_drawer_temp.setText("沙箱打包中...")
-        QApplication.processEvents()
+        self.status_box.setText("正在后台临时沙箱中收集外部图层并打包...")
 
-        try:
-            new_pkg = ProjectPackager.package_with_external_layers_temp(project)
-            self._apply_temp_package(new_pkg)
-            QMessageBox.information(
-                self,
-                "沙箱打包就绪",
-                "已在临时沙箱中将外部图层全量打包！\n\n"
-                "本地工程保持原样，左侧二维码与推送通道已自动更新为自包含完整包，手机端可正常加载。"
-            )
+        self.temp_pkg_worker = TempPackageWorker(project.fileName(), self.project_name, ext_layers)
+        self.temp_pkg_worker.finished_signal.connect(self._on_temp_pack_finished)
+        self.temp_pkg_worker.start()
+
+    def _on_temp_pack_finished(self, success: bool, new_pkg: dict, err_msg: str):
+        if getattr(self, '_cleaned_up', False):
+            dist = new_pkg.get('dist_dir') if isinstance(new_pkg, dict) else None
+            if dist and os.path.exists(dist):
+                shutil.rmtree(dist, ignore_errors=True)
+            return
+
+        self.btn_drawer_temp.setEnabled(True)
+        self.btn_drawer_temp.setText("⚡ 临时沙箱打包")
+
+        if not success:
+            QMessageBox.critical(self, "临时打包失败", f"处理外部图层打包时出错：\n{err_msg}")
+            return
+
+        self._apply_temp_package(new_pkg)
+        QMessageBox.information(
+            self,
+            "沙箱打包就绪",
+            "已在临时沙箱中将外部图层全量打包！\n\n"
+            "本地工程保持原样，左侧二维码与推送通道已自动更新为自包含完整包，手机端可正常加载。"
+        )
+        if self.drawer and self.drawer.isVisible():
             self._refresh_drawer_data()
-        except Exception as e:
-            QMessageBox.critical(self, "临时打包失败", f"处理外部图层打包时出错：\n{str(e)}")
-        finally:
-            self.btn_drawer_temp.setEnabled(True)
-            self.btn_drawer_temp.setText("⚡ 临时沙箱打包")
 
     def _apply_temp_package(self, pkg_info: dict):
         """Hot-swap active distribution payload with temporary self-contained package."""
@@ -628,13 +690,6 @@ class QFieldSendDialog(QDialog):
             smb = self.pkg_info.get('size_bytes', 0) / (1024 * 1024)
             self.size_lbl.setText(f"大小: <b>{smb:.2f} MB</b>")
 
-        if hasattr(self, 'btn_warn') and self.btn_warn:
-            orig_cnt = pkg_info.get('original_external_count', len(layers_placeholder if 'layers_placeholder' in locals() else []))
-            self.btn_warn.setText("外部图层已临时自包含打包")
-            self.btn_warn.setIcon(get_icon("success"))
-            self.btn_warn.setStyleSheet("QPushButton { color: #2e7d32; font-weight: bold; }")
-            self.btn_warn.setToolTip("当前投送包已在临时沙箱中合并外部图层，手机端加载不红框，本地工程未受改动")
-
         self.status_box.setText("已完成外部图层临时自包含打包，分发载荷已就绪！")
 
     def _repackage(self):
@@ -644,14 +699,6 @@ class QFieldSendDialog(QDialog):
                 self.project_name = txt
 
         self._cached_layers_dist = None
-
-        if self.server:
-            self.server.stop()
-            self.server = None
-
-        if self.mdns:
-            self.mdns.stop()
-            self.mdns = None
 
         if self.dist_dir and os.path.exists(self.dist_dir):
             shutil.rmtree(self.dist_dir, ignore_errors=True)
@@ -692,6 +739,15 @@ class QFieldSendDialog(QDialog):
                 pass
             self.pkg_worker = None
 
+        tp_worker = getattr(self, '_temp_pack_worker', None)
+        if tp_worker and tp_worker.isRunning():
+            try:
+                tp_worker.finished_signal.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            tp_worker.wait(500)
+            self._temp_pack_worker = None
+
         try:
             if hasattr(self, 'tab_localsend') and self.tab_localsend:
                 self.tab_localsend.stop()
@@ -727,3 +783,9 @@ class QFieldSendDialog(QDialog):
     def reject(self):
         self._cleanup()
         super().reject()
+
+    def __del__(self):
+        try:
+            self._cleanup()
+        except Exception:
+            pass

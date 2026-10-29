@@ -3,7 +3,7 @@ name=QField LAN Drop
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Direct LAN and hotspot transfer of QGIS projects to QField via QR codes and deep links.
-version=1.1.2
+version=1.1.4
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 about=Transfer QGIS projects directly to mobile QField over local Wi-Fi or mobile hotspot using QR codes and qfield:// deep links. Works without cloud uploads, cables, or external pip dependencies.
@@ -17,6 +17,18 @@ deprecated=False
 tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
+  Version 1.1.4:
+  - 🌐 极简下载地址与秒级扫码：下载直链优化为 /project.zip，移除繁琐的中文 URL 转义，大幅降低二维码点阵密度并提升手机扫码识别率；保留 RFC 6266 标准标头确保手机下载后仍自动保存为真实中文工程名。 / Streamlined download URL to clean /project.zip alias, removing percent-encoded Chinese characters to produce lower-density, faster-scanning QR codes while retaining RFC 6266 automatic filename decoding.
+  - 🗂️ 扫码投送子 Tab 栏重构：将相机唤醒、浏览器下载与手动离线通道重构为顶部水平子选项卡，界面空间充裕自然，彻底杜绝元素折行挤压。 / Reorganized QR dispatching into 3 top-aligned horizontal sub-tabs for clean layout and improved readability.
+  - 📱 手机助手安装器重构：将 QField 伴侣插件安装对话框升级为双 Tab 结构（扫码直装 / ADB 数据线写入），消除白边残留并优化展示排版。 / Reorganized mobile installer into 2 clean tabs with fixed vertical margins and aligned layout.
+  - 📁 成果接收路径展示优化：存储目录支持单行智能居中截断（ElidedLabel）与悬停提示，新增紧邻的【打开】按钮并独立关联工程行，排版工整不溢出。 / Enhanced storage path presentation in receive dialog with middle-elided text, hover tooltips, and adjacent open button.
+  - 🛡️ 线程生命周期与 QGIS 防崩加固：在所有对话框销毁、关闭及异常退出时全面部署安全断开与优雅退出守护，彻底杜绝 QThread 崩溃。 / Hardened worker thread detachment and safe termination guards to prevent QThread crashes on dialog close.
+
+  Version 1.1.3:
+  - 📷 扫码智能回传全链路联动：成果接收二维码升级支持携带当前关联工程名参数（?proj=xxx），手机一键扫码自动解析电脑主机并配对目标工程，告别手动输入 IP。 / Upgraded return QR code to carry target project metadata; mobile companion can scan to automatically pair and configure desktop host.
+  - 📱 移动端伴侣组件升级 (v1.0.3)：同步升级内置的 QFieldDrop Mobile 伴侣插件至 v1.0.3，新增 [📷 扫码] 按钮，调用设备相机原生解析电脑二维码并自动触发握手。 / Bundled updated mobile companion v1.0.3 with native camera QR scanning & auto ping handshake.
+  - 🌐 移动端回传网页体验增强：手机浏览器扫码打开的成果回传页新增当前电脑工程名徽标显示，并给出 QField 沙盒直传贴心指引。 / Inbound return web page now displays target desktop project badge with mobile sandbox bypass guidance.
+
   Version 1.1.2:
   - 📐 侧边抽屉式资源管理：将外部图层诊断与树图整合为向右抽屉，默认保持 520px 紧凑收起，点击平滑展开，收起零留白。 / Collapsible Inspector Drawer for layer distribution & external layer diagnostics; defaults to compact 520px window.
   - ⚡ 毫秒级性能优化：引入内存预热缓存，彻底根除点击展开时主线程扫描磁盘文件的 250ms+ 阻塞，展开耗时降至 38ms。 / Sub-40ms instant drawer toggle backed by pre-cached disk inspection data.

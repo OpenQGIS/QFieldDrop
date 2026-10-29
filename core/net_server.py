@@ -134,13 +134,22 @@ class NetworkHelper:
         best_ip = sorted_ips[0] if sorted_ips else None
         for ip in sorted_ips:
             desc = cls.classify_ip(ip)
-            if ip == best_ip and not cls.is_virtual_or_proxy(ip):
-                label = f"{ip} ({desc}) ★ 推荐局域网"
-            elif ip == primary_ip and not cls.is_virtual_or_proxy(ip):
-                label = f"{ip} ({desc}) ★ 默认出口"
+            is_rec = (ip == best_ip and not cls.is_virtual_or_proxy(ip))
+            is_def = (ip == primary_ip and not cls.is_virtual_or_proxy(ip))
+
+            if is_rec:
+                label = f"{ip} ★ 推荐"
+                tooltip = f"{ip} ({desc}) ★ 推荐局域网优先使用"
+            elif is_def:
+                label = f"{ip} (默认)"
+                tooltip = f"{ip} ({desc}) 系统默认出口"
+            elif cls.is_virtual_or_proxy(ip):
+                label = f"{ip} (虚拟网卡)"
+                tooltip = f"{ip} ({desc}，手机通常不可直连)"
             else:
-                label = f"{ip} ({desc})"
-            result.append({'ip': ip, 'label': label})
+                label = ip
+                tooltip = f"{ip} ({desc})"
+            result.append({'ip': ip, 'label': label, 'tooltip': tooltip})
 
         return result
 
@@ -175,11 +184,19 @@ _MOBILE_UPLOAD_HTML = """<!DOCTYPE html>
   .progress-bar-bg { width: 100%; height: 10px; background: #E2E8F0; border-radius: 5px; overflow: hidden; }
   .progress-bar-fill { height: 100%; width: 0%; background: #10B981; transition: width 0.15s ease; }
   .status-text { font-size: 13px; margin-top: 6px; text-align: center; color: #475569; }
+  .tip-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #166534; line-height: 1.5; margin-bottom: 14px; }
+  .proj-badge { display: inline-block; background: #E0F2FE; color: #0369A1; font-weight: 600; padding: 3px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>📤 QField 外业成果回传</h1>
+  <div id="projBadge" class="proj-badge" style="display:none;"></div>
+  
+  <div class="tip-box">
+    💡 <b>外业极速建议</b>：若手机已安装 QField 伴侣插件，请在 QField 顶部工具栏点击图标并选择 <b>【📷 扫码】</b>，无需在手机浏览器中翻找 Android 沙盒！
+  </div>
+
   <p class="desc">请选择 QField 导出的工程压缩包 (.zip) 或现场照片，点击立即回传到电脑 QGIS。</p>
   
   <input type="file" id="fileInput" style="display:none;" />
@@ -211,6 +228,17 @@ const uploadBtn = document.getElementById('uploadBtn');
 const progressBox = document.getElementById('progressBox');
 const progressFill = document.getElementById('progressFill');
 const statusText = document.getElementById('statusText');
+
+// Parse target project name from URL ?proj=xxx
+const urlParams = new URLSearchParams(window.location.search);
+const projName = urlParams.get('proj') || urlParams.get('project');
+if (projName) {
+  const badge = document.getElementById('projBadge');
+  if (badge) {
+    badge.innerText = '🎯 目标电脑工程: ' + projName;
+    badge.style.display = 'inline-block';
+  }
+}
 
 fileInput.addEventListener('change', function() {
   if (this.files && this.files.length > 0) {
@@ -315,8 +343,7 @@ class LanDropServer:
                             zf.write(full, arcname=rel)
                 # Also create plugin.zip alias
                 alias = os.path.join(self.serve_dir, "plugin.zip")
-                if not os.path.exists(alias):
-                    shutil.copyfile(self.mobile_zip_path, alias)
+                shutil.copyfile(self.mobile_zip_path, alias)
         except (shutil.Error, OSError):
             pass
 
@@ -338,12 +365,18 @@ class LanDropServer:
             def _send_zip_headers(self, file_size, download_name=None):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/zip")
-                effective_name = download_name or parent_self.zip_filename
-                if download_name:
-                    safe_ascii_name = download_name
-                else:
-                    safe_base = re.sub(r'[^\w\-\.]', '_', os.path.splitext(effective_name)[0]).strip('_')
-                    safe_ascii_name = f"{safe_base}.zip" if safe_base else "project.zip"
+                effective_name = download_name or parent_self.zip_filename or "project.zip"
+                # RFC 2616 / RFC 6266: The fallback filename param MUST be pure Latin-1/ASCII.
+                # In Python's http.server, headers are encoded strictly with 'latin-1'.
+                # Any non-ASCII character (e.g. Chinese characters from \w in regex) causes
+                # UnicodeEncodeError in send_header(), which immediately crashes the handler
+                # thread and yields ERR_EMPTY_RESPONSE in browsers.
+                base_name, ext = os.path.splitext(effective_name)
+                ext = ext if ext else ".zip"
+                safe_base = re.sub(r'[^a-zA-Z0-9_\-]', '_', base_name).strip('_')
+                safe_ascii_name = f"{safe_base}{ext}" if safe_base else f"project{ext}"
+
+                # RFC 5987 / RFC 6266: Use filename*=UTF-8''... for full Unicode support across modern browsers
                 encoded_utf8_name = urllib.parse.quote(effective_name)
                 self.send_header(
                     "Content-Disposition",
@@ -367,14 +400,15 @@ class LanDropServer:
 
             def do_HEAD(self):
                 req_path = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
-                cur_fname = parent_self.zip_filename
+                cur_fname = parent_self.zip_filename or "project.zip"
                 valid_paths = {'', 'project.zip', 'latest.zip', cur_fname, urllib.parse.unquote(cur_fname)}
+                valid_paths_lower = {p.lower() for p in valid_paths if p}
                 if req_path in ('mobile.zip', 'plugin.zip', 'qfield_drop.zip'):
                     m_path = parent_self.mobile_zip_path
                     if os.path.exists(m_path):
                         self._send_zip_headers(os.path.getsize(m_path), download_name="qfield_drop.zip")
                         return
-                if req_path in valid_paths:
+                if req_path in valid_paths or req_path.lower() in valid_paths_lower:
                     cur_target = parent_self.target_filepath
                     if not os.path.exists(cur_target):
                         self.send_error(404, "Project archive not found")
@@ -400,10 +434,11 @@ class LanDropServer:
                     return
 
                 # Route 2: Project payload download
-                cur_fname = parent_self.zip_filename
+                cur_fname = parent_self.zip_filename or "project.zip"
                 valid_paths = {'', 'project.zip', 'latest.zip', cur_fname, urllib.parse.unquote(cur_fname)}
+                valid_paths_lower = {p.lower() for p in valid_paths if p}
 
-                if req_path in valid_paths:
+                if req_path in valid_paths or req_path.lower() in valid_paths_lower:
                     cur_target = parent_self.target_filepath
                     if not os.path.exists(cur_target):
                         self.send_error(404, "Project archive not found")
@@ -524,17 +559,22 @@ class LanDropServer:
                 # Suppress stdout logging to prevent polluting QGIS console
                 pass
 
-        # On Windows, setting allow_reuse_address=False ensures OSError is raised on port conflict so it advances to next port
-        if os.name == 'nt':
-            ThreadingHTTPServer.allow_reuse_address = False
-        else:
-            ThreadingHTTPServer.allow_reuse_address = True
+        import socketserver
+
+        class _FastHTTPServer(ThreadingHTTPServer):
+            allow_reuse_address = (os.name != 'nt')
+
+            def server_bind(self):
+                socketserver.TCPServer.server_bind(self)
+                host, port = self.server_address[:2]
+                self.server_name = host
+                self.server_port = port
 
         # Try to bind ports starting from self.port
         bound = False
         for p in range(self.port, self.port + 20):
             try:
-                self.httpd = ThreadingHTTPServer(('0.0.0.0', p), DropRequestHandler)
+                self.httpd = _FastHTTPServer(('0.0.0.0', p), DropRequestHandler)
                 self.httpd.daemon_threads = True
                 self.port = p
                 bound = True

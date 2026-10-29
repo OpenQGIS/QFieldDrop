@@ -9,6 +9,7 @@ Supports:
 
 import os
 import re
+import time
 import shutil
 import sqlite3
 import tempfile
@@ -215,6 +216,7 @@ class ProjectPackager:
                     'name': layer.name(),
                     'provider': provider,
                     'path': file_path,
+                    'raw_source': source,
                     'size': file_size,
                     'associated_files': associated
                 })
@@ -363,9 +365,10 @@ class ProjectPackager:
 
         total_files = len(files_to_pack)
         file_count = 0
+        last_emit_time = 0.0
 
-        # 2. Compress files with progress notification
-        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # 2. Compress files with throttled progress notification (compresslevel=1 for ~3x faster GIS binary packing)
+        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
             for idx, (full_path, arc_name) in enumerate(files_to_pack):
                 if is_cancelled and is_cancelled():
                     zf.close()
@@ -379,7 +382,10 @@ class ProjectPackager:
                 zf.write(full_path, arcname=arc_name)
                 file_count += 1
                 if progress_callback:
-                    progress_callback(file_count, total_files, arc_name)
+                    now = time.monotonic()
+                    if file_count == 1 or file_count == total_files or (now - last_emit_time) >= 0.04:
+                        last_emit_time = now
+                        progress_callback(file_count, total_files, arc_name)
 
         return file_count
 
@@ -470,7 +476,10 @@ class ProjectPackager:
         cls,
         project: Optional[QgsProject] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
-        is_cancelled: Optional[Callable[[], bool]] = None
+        is_cancelled: Optional[Callable[[], bool]] = None,
+        project_path: Optional[str] = None,
+        project_name: Optional[str] = None,
+        external_layers: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Temporary Self-contained Packaging (Option B):
@@ -479,18 +488,23 @@ class ProjectPackager:
         a standalone zip payload for immediate mobile dispatch.
         The user's local disk project and original data files remain 100% untouched.
         """
-        if project is None:
-            project = QgsProject.instance()
-
-        project_path = project.fileName()
-        if not project_path or not os.path.exists(project_path):
-            raise ValueError("当前工程尚未保存到本地磁盘，请先保存工程后再进行投送！")
-
-        if project.isDirty():
-            project.write()
+        if not project_path:
+            if project is None:
+                project = QgsProject.instance()
+            project_path = project.fileName()
+            if not project_path or not os.path.exists(project_path):
+                raise ValueError("当前工程尚未保存到本地磁盘，请先保存工程后再进行投送！")
+            if project.isDirty():
+                project.write()
+            if not project_name:
+                project_name = project.baseName() or "qfield_project"
+            if external_layers is None:
+                external_layers = cls.check_external_layers(project)
 
         project_dir = os.path.normpath(os.path.dirname(project_path))
-        project_name = project.baseName() or "qfield_project"
+        project_name = project_name or "qfield_project"
+        if external_layers is None:
+            external_layers = []
 
         # 1. Create sandbox workspace
         sandbox_dir = tempfile.mkdtemp(prefix="qfield_sbx_")
@@ -512,7 +526,6 @@ class ProjectPackager:
                     shutil.copy2(src_file, dest_file)
 
             # 3. Collect external layers and copy associated files to sandbox/data/
-            external_layers = cls.check_external_layers(project)
             copied_files = set()
             path_replacements = []  # list of (pattern, replacement)
 
@@ -521,7 +534,7 @@ class ProjectPackager:
                 if not phys_path or not os.path.exists(phys_path):
                     continue
 
-                associated = cls.get_associated_files(phys_path)
+                associated = item.get('associated_files') or cls.get_associated_files(phys_path)
                 for fpath in associated:
                     norm_k = os.path.normcase(os.path.abspath(fpath))
                     if norm_k not in copied_files:
@@ -545,10 +558,14 @@ class ProjectPackager:
                 except ValueError:
                     pass
 
-                # Also grab raw source from layer
-                layer_obj = project.mapLayer(item.get('id', ''))
-                if layer_obj:
-                    raw_p, _ = cls.split_qgis_source(layer_obj.source())
+                # Also grab raw source from layer metadata or live layer
+                raw_source = item.get('raw_source', '')
+                if not raw_source and project is not None:
+                    layer_obj = project.mapLayer(item.get('id', ''))
+                    if layer_obj:
+                        raw_source = layer_obj.source()
+                if raw_source:
+                    raw_p, _ = cls.split_qgis_source(raw_source)
                     if raw_p:
                         candidates.append(raw_p.replace('\\', '/'))
                         candidates.append(raw_p.replace('/', '\\'))
@@ -627,7 +644,8 @@ class ProjectPackager:
         cls,
         project: Optional[QgsProject] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
-        is_cancelled: Optional[Callable[[], bool]] = None
+        is_cancelled: Optional[Callable[[], bool]] = None,
+        repackage: bool = True
     ) -> Dict[str, Any]:
         """
         Permanent Archive to Current Project (Option A):
@@ -684,6 +702,9 @@ class ProjectPackager:
             pass
 
         project.write()
+
+        if not repackage:
+            return {'archived_count': len(external_layers)}
 
         # Repackage project with newly archived data
         return cls.package_project(

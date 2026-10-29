@@ -25,20 +25,31 @@ MULTICAST_GROUP = "224.0.0.167"
 LOCALSEND_PORT = 53317
 
 
+_SSL_CTX = None
+_OPENER = None
+
+
 def _get_ssl_context():
-    """Create unverified SSL context to accept LocalSend's self-signed certificates."""
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+    """Return cached unverified SSL context (avoids reloading Windows Cert Store & GIL lock)."""
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        proto = getattr(ssl, "PROTOCOL_TLS_CLIENT", ssl.PROTOCOL_TLS)
+        ctx = ssl.SSLContext(proto)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        _SSL_CTX = ctx
+    return _SSL_CTX
 
 
 def _get_opener():
-    """Builds a dedicated opener that bypasses system/VPN proxies (Clash, etc.) for local LAN."""
-    ctx = _get_ssl_context()
-    https_handler = urllib.request.HTTPSHandler(context=ctx)
-    proxy_handler = urllib.request.ProxyHandler({})  # Strictly disable system / VPN proxy for LAN
-    return urllib.request.build_opener(proxy_handler, https_handler)
+    """Builds and caches a dedicated opener that bypasses system/VPN proxies for local LAN."""
+    global _OPENER
+    if _OPENER is None:
+        ctx = _get_ssl_context()
+        https_handler = urllib.request.HTTPSHandler(context=ctx)
+        proxy_handler = urllib.request.ProxyHandler({})  # Strictly disable system / VPN proxy for LAN
+        _OPENER = urllib.request.build_opener(proxy_handler, https_handler)
+    return _OPENER
 
 
 def _get_local_ip_set():
@@ -106,7 +117,13 @@ class LocalSendDiscovery:
         self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
     @classmethod
-    def fetch_device_info(cls, ip: str, port: int = LOCALSEND_PORT, timeout: float = 1.5) -> Optional[LocalSendDevice]:
+    def fetch_device_info(
+        cls,
+        ip: str,
+        port: int = LOCALSEND_PORT,
+        timeout: float = 1.5,
+        is_cancelled: Optional[Callable[[], bool]] = None
+    ) -> Optional[LocalSendDevice]:
         """Probes a device directly by IP and port via LocalSend REST API v2."""
         opener = _get_opener()
         reg_payload = json.dumps({
@@ -121,6 +138,8 @@ class LocalSendDiscovery:
         }).encode('utf-8')
 
         for proto in ("https", "http"):
+            if is_cancelled and is_cancelled():
+                return None
             # 1. Official modern LocalSend register endpoint
             reg_url = f"{proto}://{ip}:{port}/api/localsend/v2/register"
             reg_req = urllib.request.Request(
@@ -145,9 +164,19 @@ class LocalSendDiscovery:
                             fingerprint=fp,
                             https=(proto == "https")
                         )
-            except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+            except urllib.error.HTTPError:
+                pass
+            except urllib.error.URLError as e:
+                reason = getattr(e, 'reason', None)
+                if isinstance(reason, (TimeoutError, socket.timeout, ConnectionRefusedError)):
+                    return None
+            except (TimeoutError, socket.timeout, ConnectionRefusedError):
+                return None
+            except (OSError, json.JSONDecodeError):
                 pass
 
+            if is_cancelled and is_cancelled():
+                return None
             # 2. Legacy fallback endpoint
             info_url = f"{proto}://{ip}:{port}/api/localsend/v2/info"
             info_req = urllib.request.Request(info_url, headers={'User-Agent': 'LocalSend'})
@@ -168,6 +197,8 @@ class LocalSendDiscovery:
                             fingerprint=fp,
                             https=(proto == "https")
                         )
+            except (TimeoutError, socket.timeout, ConnectionRefusedError):
+                return None
             except Exception:
                 continue
         return None
@@ -354,6 +385,8 @@ class LocalSendDiscovery:
         all_indices = prioritized + remaining
 
         local_ips = _get_local_ip_set()
+        bind_ip = self.local_ip if (self.local_ip and not self.local_ip.startswith("127.")) else None
+
         def probe_index(idx):
             if not self._running:
                 return
@@ -361,10 +394,15 @@ class LocalSendDiscovery:
             if target_ip in self.discovered_devices or target_ip in local_ips or target_ip == self.local_ip:
                 return
 
-            # Fast TCP port probe with short timeout to prevent blocking
+            # Fast TCP port probe bound to physical LAN interface (prevents VPN/TUN from faking SYN-ACK)
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.25)
+                s.settimeout(0.20)
+                if bind_ip:
+                    try:
+                        s.bind((bind_ip, 0))
+                    except OSError:
+                        pass
                 res = s.connect_ex((target_ip, LOCALSEND_PORT))
                 s.close()
                 if res != 0 or not self._running:
@@ -372,12 +410,17 @@ class LocalSendDiscovery:
             except Exception:
                 return
 
-            dev = self.fetch_device_info(target_ip, LOCALSEND_PORT, timeout=0.8)
+            dev = self.fetch_device_info(
+                target_ip,
+                LOCALSEND_PORT,
+                timeout=0.6,
+                is_cancelled=lambda: not self._running
+            )
             if dev and self._running and target_ip not in self.discovered_devices:
                 self.discovered_devices[target_ip] = dev
                 self.signals.device_found.emit(dev)
 
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=16)
         try:
             futures = [self._executor.submit(probe_index, idx) for idx in all_indices]
             for f in concurrent.futures.as_completed(futures):
