@@ -82,10 +82,10 @@ class MobileInstallDialog(QDialog):
                 import configparser
                 cfg = configparser.ConfigParser()
                 cfg.read(mobile_meta, encoding='utf-8')
-                return cfg.get("general", "version", fallback="1.0.1")
+                return cfg.get("general", "version", fallback="1.0.4")
             except Exception:
                 pass
-        return "1.0.1"
+        return "1.0.4"
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)

@@ -151,16 +151,24 @@ def sync_clean_source(source_dir: str, target_dir: str):
 
 
 def update_mobile_readme_hashes(readme_path: str, hashes: dict):
-    """更新移动端发布目录 README.md 中的 SHA256 校验码"""
+    """更新移动端发布目录 README.md 中的 SHA256 校验码与版本号"""
     if not os.path.exists(readme_path):
         return
     with open(readme_path, "r", encoding="utf-8") as f:
         content = f.read()
 
+    # 动态匹配并更新表格行中的文件名与 SHA256
     for filename, sha in hashes.items():
-        # 匹配对应表格行的 SHA256 并替换
-        pattern = rf"(\*\*{re.escape(filename)}\*\*.*?\| `)[a-f0-9]{{64}}(`)"
-        content = re.sub(pattern, rf"\g<1>{sha}\g<2>", content)
+        base_key = filename.strip("`")
+        if "folder" in base_key:
+            pattern = r"(\*\*`QFieldDropMobile_folder_V-).*?(\.zip`\*\*.*?\| `)[a-f0-9]{64}(`)"
+            content = re.sub(pattern, rf"\g<1>{base_key.split('_V-')[-1].replace('.zip', '')}\g<2>{sha}\g<3>", content)
+        elif "QFieldDropMobile_V-" in base_key:
+            pattern = r"(\*\*`QFieldDropMobile_V-).*?(\.zip`\*\*.*?\| `)[a-f0-9]{64}(`)"
+            content = re.sub(pattern, rf"\g<1>{base_key.split('_V-')[-1].replace('.zip', '')}\g<2>{sha}\g<3>", content)
+        else:
+            pattern = rf"(\*\*{re.escape(filename)}\*\*.*?\| `)[a-f0-9]{{64}}(`)"
+            content = re.sub(pattern, rf"\g<1>{sha}\g<2>", content)
 
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(content)
