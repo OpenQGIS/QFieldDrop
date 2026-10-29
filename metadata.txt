@@ -18,10 +18,8 @@ tags=qfield, lan, airdrop, transfer, mobile, qr, offline
 icon=icon/QFieldDrop_logo.svg
 changelog=
   Version 1.2.2:
-  - 修复二维码生成模块中制表符与空格混用的缩进问题（Flake8 E101）。 / Fix mixed tab and space indentation in QR code module (Flake8 E101).
-  - 调整 QGIS 4 / Qt6 枚举调用方式为强类型作用域枚举，保持 QGIS 3.x 与 4.x 双版本兼容。 / Update Qt enum references to scoped enums for dual QGIS 3.x and 4.x compatibility.
-  - 修复静态代码安全扫描报告中的潜在告警项，通过 Bandit 安全检查。 / Resolve static analysis findings to pass Bandit security checks.
-  - 统一插件在 QGIS 中的显示名称为 QFieldDrop。 / Standardize official plugin display name to QFieldDrop.
+  - 统一插件在 QGIS 中的官方显示名称为 QFieldDrop。 / Standardize official plugin display name to QFieldDrop.
+  - 优化 QGIS 4 与 Qt6 运行环境兼容性。 / Improve runtime compatibility for QGIS 4 and Qt6.
 
   Version 1.2.0:
   - 简化投送与接收弹窗布局为单屏卡片，减少界面层级与选项切换。 / Simplify send and receive dialogs into single-card layouts to reduce tab switching.
