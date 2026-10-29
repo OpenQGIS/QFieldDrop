@@ -45,7 +45,7 @@ QGIS 工具栏:  [ 📤 投送工程至 QField ]   [ 📥 接收 QField 成果 ]
 | **元数据源** | ./metadata.txt | ./mobile/metadata.txt |
 | **宿主环境** | QGIS Desktop (PyQt5 / PyQt6) | QField Mobile (QML / QtQuick / JavaScript) |
 | **版本迭代节奏**| **敏捷高频**（异步防假死重构、局域网协议迭代） | **克制稳健**（现场外业稳定性优先，免除频繁重复安装） |
-| **分发包制品** | QFieldDrop_V-1.1.3.zip (官方纯净包) | QFieldDropMobile_V-1.0.3.zip (直装与沙盒包) |
+| **分发包制品** | QFieldDrop_V-1.1.4.zip (官方纯净包) | QFieldDropMobile_V-1.0.4.zip (直装与沙盒包) |
 
 > 💡 **架构解耦原则**：桌面端的性能调优、跨版本垫片升级或多线程重构**严禁无谓抬升手机端版本号**；两端生命周期完全解耦，构建流水线（uild_clean_release.py）自动独立解析版本并打包。
 

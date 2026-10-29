@@ -5,7 +5,7 @@ about=Directly send field survey results, updated layers, and photos back to des
 author=OpenQGIS
 email=OpenQGIS@outlook.com
 icon=icon.svg
-version=1.0.3
+version=1.0.4
 qgisMinimumVersion=3.0
 category=Plugins
 tags=qfield, mobile, return, upload, lan, offline
@@ -13,6 +13,10 @@ homepage=https://github.com/OpenQGIS/QFieldDrop
 repository=https://github.com/OpenQGIS/QFieldDrop
 tracker=https://github.com/OpenQGIS/QFieldDrop/issues
 changelog=
+  Version 1.0.4:
+  - 💬 原生 Toast 触控全屏反馈：集成 QField 官方 displayToast 浮动提示，消除模态弹窗点击无反应假象，提升外业触控确定性。 / Integrated QField native displayToast floating feedback to eliminate silent tap ambiguities in modal dialogs.
+  - 📋 主动焦点剪贴板自愈：点击【粘贴识别】强制输入框获得焦点并读取系统剪贴板，适配不同 Android 版本安全剪贴板策略。 / Active-focus clipboard retrieval fallback ensuring reliable IP parsing across diverse Android privacy policies.
+
   Version 1.0.3:
   - 📋 扫码自动识别与配对回传：支持手机自带相机扫码后自动嗅探剪贴板回填电脑 IP 与目标工程，秒级配对免除手机小键盘手动输入烦恼。 / Automatic clipboard URL sniffing & pairing from mobile camera QR scanning without manual typing.
   - 🔗 智能探测自愈与工程校验：自动触发局域网连通探测，并校验外业手机工程名是否一致，保障成果精准归档。 / Automatic connectivity probing with project identity verification.
