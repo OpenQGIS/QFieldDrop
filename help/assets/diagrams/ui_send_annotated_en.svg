@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" width="620" height="383" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" style="max-width:100%; height:auto; display:block; margin: 12px auto; font-family: 'Segoe UI', sans-serif;">
+  <defs>
+    <filter id="win-shadow" x="-3%" y="-2%" width="106%" height="108%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  
+  <g filter="url(#win-shadow)" transform="translate(15, 10)">
+    <!-- Window Frame -->
+    <rect width="730" height="390" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" />
+    <rect width="730" height="34" rx="10" fill="#F1F5F9" />
+    <rect y="20" width="730" height="14" fill="#F1F5F9" />
+    <circle cx="16" cy="17" r="4.5" fill="#EF4444" />
+    <circle cx="30" cy="17" r="4.5" fill="#F59E0B" />
+    <circle cx="44" cy="17" r="4.5" fill="#10B981" />
+    <text x="65" y="18" font-size="12" font-weight="600" fill="#334155" dominant-baseline="central">QField LAN Drop - Outbound Dispatch (Drop Out)</text>
+
+    <!-- 1. Network IP Selector Box -->
+    <g transform="translate(20, 50)">
+      <rect width="450" height="48" rx="6" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.2"/>
+      <text x="14" y="24" font-size="12" font-weight="bold" fill="#1E293B" dominant-baseline="central">Select Network IP:</text>
+      <rect x="135" y="10" width="235" height="28" rx="4" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2"/>
+      <text x="145" y="24" font-size="11.5" fill="#0F172A" dominant-baseline="central">192.168.43.120 (Hotspot / Wi-Fi)</text>
+      <path d="M 355 22 L 361 28 L 367 22" fill="#64748B"/>
+      <rect x="380" y="10" width="60" height="28" rx="4" fill="#E2E8F0"/>
+      <text x="410" y="24" font-size="11" fill="#475569" text-anchor="middle" dominant-baseline="central">Refresh</text>
+    </g>
+
+    <!-- 2. Tabs & QR Code Main Box -->
+    <g transform="translate(20, 110)">
+      <rect width="130" height="28" rx="4" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <text x="65" y="14" font-size="11.5" font-weight="bold" fill="#2563EB" text-anchor="middle" dominant-baseline="central">📱 QR Code Wake-up</text>
+      <rect x="135" y="0" width="130" height="28" rx="4" fill="#F1F5F9" stroke="#E2E8F0"/>
+      <text x="200" y="14" font-size="11.5" fill="#64748B" text-anchor="middle" dominant-baseline="central">⚡ LocalSend Push</text>
+
+      <rect y="27" width="450" height="205" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      
+      <!-- QR Frame -->
+      <rect x="25" y="45" width="130" height="130" rx="6" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5"/>
+      <rect x="37" y="57" width="30" height="30" fill="#0F172A"/>
+      <rect x="42" y="62" width="20" height="20" fill="#F8FAFC"/>
+      <rect x="47" y="67" width="10" height="10" fill="#0F172A"/>
+
+      <rect x="113" y="57" width="30" height="30" fill="#0F172A"/>
+      <rect x="118" y="62" width="20" height="20" fill="#F8FAFC"/>
+      <rect x="123" y="67" width="10" height="10" fill="#0F172A"/>
+
+      <rect x="37" y="133" width="30" height="30" fill="#0F172A"/>
+      <rect x="42" y="138" width="20" height="20" fill="#F8FAFC"/>
+      <rect x="47" y="143" width="10" height="10" fill="#0F172A"/>
+
+      <rect x="75" y="75" width="28" height="28" rx="4" fill="#589632"/>
+      <polygon points="89,82 82,95 96,95" fill="#FFF"/>
+
+      <!-- QR Details -->
+      <text x="175" y="65" font-size="12" font-weight="bold" fill="#0F172A">Scan with phone camera to wake QField &amp; import</text>
+      <rect x="175" y="80" width="250" height="26" rx="4" fill="#F1F5F9" stroke="#E2E8F0"/>
+      <text x="185" y="93" font-size="10.5" fill="#3B82F6" dominant-baseline="central">qfield://open?url=http://192.168.43.120...</text>
+      
+      <rect x="175" y="120" width="115" height="32" rx="4" fill="#2563EB"/>
+      <text x="232" y="136" font-size="12" font-weight="bold" fill="#FFF" text-anchor="middle" dominant-baseline="central">Copy URL</text>
+
+      <rect x="300" y="120" width="115" height="32" rx="4" fill="#FFFFFF" stroke="#94A3B8"/>
+      <text x="357" y="136" font-size="12" fill="#334155" text-anchor="middle" dominant-baseline="central">Repackage</text>
+    </g>
+
+    <!-- RIGHT DRAWER: Treemap Analysis -->
+    <g transform="translate(485, 45)">
+      <rect width="225" height="270" rx="6" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+      <rect width="225" height="30" rx="6" fill="#E2E8F0"/>
+      <text x="14" y="16" font-size="11.5" font-weight="bold" fill="#1E293B" dominant-baseline="central">📊 Layer Storage Analysis</text>
+      
+      <g transform="translate(10, 40)">
+        <rect width="120" height="130" fill="#3B82F6" opacity="0.85" rx="3" stroke="#FFF"/>
+        <text x="60" y="60" font-size="10" font-weight="bold" fill="#FFF" text-anchor="middle">DOM.tif</text>
+        <text x="60" y="75" font-size="9" fill="#E0F2FE" text-anchor="middle">128 MB</text>
+
+        <rect x="125" width="80" height="75" fill="#10B981" opacity="0.85" rx="3" stroke="#FFF"/>
+        <text x="165" y="35" font-size="9.5" font-weight="bold" fill="#FFF" text-anchor="middle">survey.gpkg</text>
+        <text x="165" y="48" font-size="8.5" fill="#DCFCE7" text-anchor="middle">34 MB</text>
+
+        <rect x="125" y="80" width="80" height="50" fill="#F59E0B" opacity="0.85" rx="3" stroke="#FFF"/>
+        <text x="165" y="105" font-size="9" fill="#FFF" text-anchor="middle">base.qml</text>
+
+        <rect y="135" width="205" height="75" fill="#8B5CF6" opacity="0.85" rx="3" stroke="#FFF"/>
+        <text x="102" y="172" font-size="10.5" font-weight="bold" fill="#FFF" text-anchor="middle">Project.qgz (12 MB)</text>
+      </g>
+    </g>
+
+    <!-- Bottom Status Bar -->
+    <rect x="1" y="350" width="728" height="38" rx="0 0 10 10" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <circle cx="25" cy="369" r="4.5" fill="#10B981"/>
+    <text x="38" y="369" font-size="11.5" fill="#475569" dominant-baseline="central">Packaged successfully: 174 MB · LAN service running</text>
+  </g>
+
+  <!-- Badges -->
+  
+    <g transform="translate(155, 48)">
+      <circle cx="0" cy="0" r="13" fill="#2563EB" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">1</text>
+    </g>
+  
+    <g transform="translate(115, 210)">
+      <circle cx="0" cy="0" r="13" fill="#EF4444" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">2</text>
+    </g>
+  
+    <g transform="translate(500, 45)">
+      <circle cx="0" cy="0" r="13" fill="#10B981" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">3</text>
+    </g>
+
+  <!-- Bottom Annotation Explanations -->
+  <g transform="translate(40, 420)">
+    <rect width="680" height="36" rx="6" fill="#F1F5F9" stroke="#E2E8F0"/>
+    <text x="20" y="18" font-size="12" font-weight="bold" fill="#2563EB" dominant-baseline="central">① Select Active Network IP</text>
+    <text x="245" y="18" font-size="12" font-weight="bold" fill="#DC2626" dominant-baseline="central">② Scan QR with Phone Camera</text>
+    <text x="470" y="18" font-size="12" font-weight="bold" fill="#16A34A" dominant-baseline="central">③ Inspect Large Layer Sizes</text>
+  </g>
+
+</svg>

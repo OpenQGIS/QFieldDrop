@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-QField LAN Drop - Outbound Dispatch Dialog (投送至手机 - Drop Out)
-Native QGIS Desktop UI style:
-- Dedicated exclusively to packaging and dispatching projects to mobile devices
-- Channels: QR Scan DeepLink / LocalSend Auto-push / Advanced ADB & QML
-- Asynchronous Non-blocking Project Packaging Engine
+QField LAN Drop - Outbound Dispatch Dialog (投送至手机 - Drop Out) [Beta Release]
+Focused purely on instant LAN QR scan & DeepLink wakeup transfer.
+Zero-dependency, non-blocking asynchronous packaging.
 """
 
 import os
@@ -15,19 +13,16 @@ from typing import Optional, Dict, Any
 from qgis.core import QgsProject
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
-    QPushButton, QTabWidget, QProgressBar, QMessageBox, QDialogButtonBox,
-    QStackedWidget, QWidget, QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QApplication, QLineEdit
+    QPushButton, QProgressBar, QMessageBox, QDialogButtonBox,
+    QStackedWidget, QWidget, QApplication, QLineEdit, QComboBox
 )
 from qgis.PyQt.QtCore import QTimer, Qt, QThread, pyqtSignal
 
-from ..core.net_server import LanDropServer
+from ..core.net_server import LanDropServer, NetworkHelper
 from ..core.packager import ProjectPackager
 from ..core.mdns_server import MdnsResponder
 
 from .tab_qr import QrDropTab
-from .tab_localsend import LocalSendTab
-from .treemap_widget import TreeMapWidget, format_size
 from .icon_helper import get_icon
 
 
@@ -83,44 +78,15 @@ class PackageWorker(QThread):
             self.finished_signal.emit(False, {}, str(e))
 
 
-class TempPackageWorker(QThread):
-    finished_signal = pyqtSignal(bool, dict, str)
-
-    def __init__(self, project_path: str, project_name: str, external_layers: list):
-        super().__init__()
-        self.project_path = project_path
-        self.project_name = project_name
-        self.external_layers = external_layers
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
-
-    def run(self):
-        try:
-            res = ProjectPackager.package_with_external_layers_temp(
-                project=None,
-                is_cancelled=lambda: self._cancelled,
-                project_path=self.project_path,
-                project_name=self.project_name,
-                external_layers=self.external_layers
-            )
-            if self._cancelled:
-                self.finished_signal.emit(False, {}, "沙箱打包已取消")
-            else:
-                self.finished_signal.emit(True, res, "")
-        except Exception as e:
-            self.finished_signal.emit(False, {}, str(e))
-
-
 class QFieldSendDialog(QDialog):
-    """Dedicated dialog for packaging and dispatching current QGIS project to phone."""
+    """Dedicated dialog for packaging and dispatching current QGIS project to phone via QR Code."""
 
     def __init__(self, parent=None, initial_tab: int = 0):
         super().__init__(parent)
         self.initial_tab = initial_tab
         self.setWindowTitle("QField 局域网直传 - 投送至手机 (Drop Out)")
-        self.resize(480, 380)
+        self.resize(490, 410)
+        self.setMinimumSize(450, 380)
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
 
@@ -133,14 +99,8 @@ class QFieldSendDialog(QDialog):
         self.port = 8899
         self.pkg_worker: Optional[PackageWorker] = None
         self.tab_qr: Optional[QrDropTab] = None
-        self.tab_deeplink: Optional[QrDropTab] = None
-        self.tab_http: Optional[QrDropTab] = None
-        self.tab_localsend: Optional[LocalSendTab] = None
-        self.drawer: Optional[QFrame] = None
-        self.treemap: Optional[TreeMapWidget] = None
-        self.ext_table: Optional[QTableWidget] = None
-        self.drawer_warn_pill: Optional[QLabel] = None
-        self._cached_layers_dist: Optional[list] = None
+        self.ip_combo: Optional[QComboBox] = None
+        self.mdns_lbl: Optional[QLabel] = None
 
         # Verify project is saved
         project = QgsProject.instance()
@@ -159,40 +119,31 @@ class QFieldSendDialog(QDialog):
         self._start_packaging()
 
     def _init_ui(self):
-        root_layout = QHBoxLayout(self)
-        root_layout.setContentsMargins(8, 8, 8, 8)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(8)
 
-        # === 1. Left Primary Work Area ===
-        self.left_widget = QWidget()
-        left_layout = QVBoxLayout(self.left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(8)
-
-        # 1. Project Info Native GroupBox (从左往右: 工程名输入框 -> 大小 -> 重新打包 -> 查看详细)
+        # 1. Project Info Native GroupBox
         info_group = QGroupBox("当前工程与打包信息")
         info_layout = QHBoxLayout(info_group)
         info_layout.setContentsMargins(8, 6, 8, 6)
         info_layout.setSpacing(6)
 
-        # 1. 工程名 (默认同步工程名，支持用户自定义输入)
         lbl_pname = QLabel("工程名:")
         info_layout.addWidget(lbl_pname)
 
         self.project_name_edit = QLineEdit(self.project_name)
         self.project_name_edit.setToolTip("默认同步当前工程名，可自定义输入导出名称 (回车或点击【重新打包】生效)")
-        self.project_name_edit.setMaximumWidth(125)
+        self.project_name_edit.setMaximumWidth(140)
         self.project_name_edit.returnPressed.connect(self._repackage)
         info_layout.addWidget(self.project_name_edit)
 
-        # 2. 大小 (不显示文件数量)
         self.size_lbl = QLabel("大小: 计算中...")
         self.size_lbl.setStyleSheet("color: #475569;")
         info_layout.addWidget(self.size_lbl)
 
         info_layout.addStretch()
 
-        # 3. 重新打包
         self.btn_refresh = QPushButton("重新打包")
         self.btn_refresh.setIcon(get_icon("refresh"))
         self.btn_refresh.setToolTip("按当前名称与工程修改重新打包")
@@ -200,16 +151,9 @@ class QFieldSendDialog(QDialog):
         self.btn_refresh.setEnabled(False)
         info_layout.addWidget(self.btn_refresh)
 
-        # 4. 查看详细 (原收起外部，向右展开树图与外部诊断)
-        self.btn_toggle_drawer = QPushButton("查看详细 ▶")
-        self.btn_toggle_drawer.setIcon(get_icon("chart"))
-        self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图与外部图层诊断")
-        self.btn_toggle_drawer.clicked.connect(lambda: self._toggle_drawer(None))
-        info_layout.addWidget(self.btn_toggle_drawer)
+        root_layout.addWidget(info_group)
 
-        left_layout.addWidget(info_group)
-
-        # 2. Central Stacked Widget: Page 0 = Packaging Progress, Page 1 = Outbound Tabs
+        # 2. Central Stacked Widget: Page 0 = Packaging Progress, Page 1 = Outbound QR Page
         self.stack = QStackedWidget()
 
         # Page 0: Packaging Status Page
@@ -227,7 +171,7 @@ class QFieldSendDialog(QDialog):
         pack_layout.addWidget(self.pack_status_lbl)
 
         self.pack_progress = QProgressBar()
-        self.pack_progress.setRange(0, 0)  # Indeterminate initially
+        self.pack_progress.setRange(0, 0)
         self.pack_progress.setTextVisible(True)
         self.pack_progress.setFixedHeight(18)
         pack_layout.addWidget(self.pack_progress)
@@ -239,17 +183,53 @@ class QFieldSendDialog(QDialog):
 
         self.stack.addWidget(self.pack_page)
 
-        # Page 1: Channels Tab Page
-        self.tabs_page = QWidget()
-        tabs_layout = QVBoxLayout(self.tabs_page)
-        tabs_layout.setContentsMargins(0, 0, 0, 0)
-        tabs_layout.setSpacing(0)
+        # Page 1: QR & Network Dispatch Page
+        self.qr_page = QWidget()
+        qr_page_layout = QVBoxLayout(self.qr_page)
+        qr_page_layout.setContentsMargins(0, 0, 0, 0)
+        qr_page_layout.setSpacing(8)
 
-        self.tabs = QTabWidget()
-        tabs_layout.addWidget(self.tabs)
-        self.stack.addWidget(self.tabs_page)
+        # QR Dispatch Card Container
+        self.qr_card_container = QVBoxLayout()
+        self.qr_card_container.setContentsMargins(0, 0, 0, 0)
+        qr_page_layout.addLayout(self.qr_card_container, 1)
 
-        left_layout.addWidget(self.stack, 1)
+        # Common LAN & Network Adapter Configuration GroupBox
+        self.net_group = QGroupBox("局域网与网卡配置")
+        net_layout = QVBoxLayout(self.net_group)
+        net_layout.setSpacing(6)
+        net_layout.setContentsMargins(10, 8, 10, 8)
+
+        ip_row = QHBoxLayout()
+        ip_row.addWidget(QLabel("投送网卡:"))
+        self.ip_combo = QComboBox()
+        self.ip_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        for idx, item in enumerate(NetworkHelper.get_all_lan_ips()):
+            self.ip_combo.addItem(item['label'], item['ip'])
+            self.ip_combo.setItemData(idx, item.get('tooltip', item['label']), Qt.ToolTipRole)
+        if self.ip_combo.count() > 0:
+            self.ip_combo.setToolTip(self.ip_combo.itemData(0, Qt.ToolTipRole))
+        self.ip_combo.currentIndexChanged.connect(self._on_ip_combo_changed)
+        ip_row.addWidget(self.ip_combo, 1)
+
+        btn_firewall = QPushButton("防火墙配置")
+        btn_firewall.setIcon(get_icon("shield"))
+        btn_firewall.setToolTip("复制 Windows 高级防火墙端口放行命令")
+        btn_firewall.clicked.connect(self._copy_firewall_cmd)
+        ip_row.addWidget(btn_firewall)
+        net_layout.addLayout(ip_row)
+
+        self.mdns_lbl = QLabel(f"局域网通用地址: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+        self.mdns_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        tip_f = self.mdns_lbl.font()
+        tip_f.setPointSize(max(8, tip_f.pointSize() - 1))
+        self.mdns_lbl.setFont(tip_f)
+        net_layout.addWidget(self.mdns_lbl)
+
+        qr_page_layout.addWidget(self.net_group)
+        self.stack.addWidget(self.qr_page)
+
+        root_layout.addWidget(self.stack, 1)
 
         # 3. Global Download Progress Bar (hidden by default)
         self.progress_bar = QProgressBar()
@@ -257,7 +237,7 @@ class QFieldSendDialog(QDialog):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.hide()
-        left_layout.addWidget(self.progress_bar)
+        root_layout.addWidget(self.progress_bar)
 
         # 4. Bottom Native Bar: Status on Left + QDialogButtonBox on Right
         bottom_row = QHBoxLayout()
@@ -270,101 +250,16 @@ class QFieldSendDialog(QDialog):
         self.status_box = QLabel("正在初始化服务...")
         bottom_row.addWidget(self.status_box, 1)
 
+        self.btn_help = QPushButton("? 帮助")
+        self.btn_help.setIcon(get_icon("help-circle"))
+        self.btn_help.clicked.connect(lambda: self._open_help("send_project"))
+        bottom_row.addWidget(self.btn_help)
+
         self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
         self.button_box.rejected.connect(self.close)
         bottom_row.addWidget(self.button_box)
 
-        left_layout.addLayout(bottom_row)
-        root_layout.addWidget(self.left_widget, 1)
-
-        # === 2. Right Side Collapsible Inspector Drawer ===
-        self._init_drawer_ui(root_layout)
-
-    def _init_drawer_ui(self, parent_layout: QHBoxLayout):
-        self.drawer = QFrame()
-        self.drawer.setFixedWidth(420)
-        self.drawer.setStyleSheet(
-            "QFrame#inspectorDrawer { border-left: 1px solid palette(mid); background: palette(window); }"
-        )
-        self.drawer.setObjectName("inspectorDrawer")
-        drawer_layout = QVBoxLayout(self.drawer)
-        drawer_layout.setContentsMargins(8, 2, 2, 2)
-        drawer_layout.setSpacing(6)
-
-        # 1. Header
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(2, 2, 2, 2)
-
-        lbl_title = QLabel("<b>📊 图层存储分析</b>")
-        header_row.addWidget(lbl_title)
-
-        self.drawer_warn_pill = QLabel()
-        self.drawer_warn_pill.setStyleSheet("color: #D97706; font-size: 11px;")
-        self.drawer_warn_pill.setVisible(False)
-        header_row.addWidget(self.drawer_warn_pill)
-        header_row.addStretch()
-
-        btn_close_drawer = QPushButton("✕")
-        btn_close_drawer.setFixedSize(22, 22)
-        btn_close_drawer.setToolTip("收起侧边栏")
-        btn_close_drawer.setStyleSheet(
-            "QPushButton { border: none; font-size: 13px; color: #64748B; }"
-            "QPushButton:hover { color: #0F172A; font-weight: bold; }"
-        )
-        btn_close_drawer.clicked.connect(lambda: self._toggle_drawer(False))
-        header_row.addWidget(btn_close_drawer)
-
-        drawer_layout.addLayout(header_row)
-
-        # 2. Tabs: Treemap vs Details Table
-        self.drawer_tabs = QTabWidget()
-
-        # Tab 0: Treemap
-        self.treemap = TreeMapWidget(self)
-        self.drawer_tabs.addTab(self.treemap, get_icon("chart"), "体积树图")
-
-        # Tab 1: External Layers Table
-        ext_widget = QWidget()
-        ext_layout = QVBoxLayout(ext_widget)
-        ext_layout.setContentsMargins(4, 4, 4, 4)
-
-        self.ext_table = QTableWidget(0, 3)
-        self.ext_table.setHorizontalHeaderLabels(["图层名称", "大小", "磁盘路径"])
-        self.ext_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.ext_table.setAlternatingRowColors(True)
-        stretch_mode = QHeaderView.Stretch if hasattr(QHeaderView, 'Stretch') else QHeaderView.ResizeMode.Stretch
-        self.ext_table.horizontalHeader().setSectionResizeMode(2, stretch_mode)
-        ext_layout.addWidget(self.ext_table)
-        self.drawer_tabs.addTab(ext_widget, get_icon("list"), "外部清单 (0)")
-
-        drawer_layout.addWidget(self.drawer_tabs, 1)
-
-        # 3. Legend / Guidance
-        legend_lbl = QLabel(
-            "<small style='color: #64748B;'><font color='#F59E0B'>● 橙点</font>工程外 ｜ 悬停色块查看详情</small>"
-        )
-        drawer_layout.addWidget(legend_lbl)
-
-        # 4. Actions Row inside drawer
-        act_row = QHBoxLayout()
-        act_row.setSpacing(6)
-
-        self.btn_drawer_archive = QPushButton("📁 一键归档")
-        self.btn_drawer_archive.setIcon(get_icon("folder"))
-        self.btn_drawer_archive.setToolTip("将外部图层物理复制到本工程 data/ 目录并自动更新相对路径")
-        self.btn_drawer_archive.clicked.connect(self._on_drawer_archive)
-        act_row.addWidget(self.btn_drawer_archive)
-
-        self.btn_drawer_temp = QPushButton("⚡ 临时沙箱打包")
-        self.btn_drawer_temp.setIcon(get_icon("send"))
-        self.btn_drawer_temp.setToolTip("在后台临时沙箱中自动收集外部图层并打包，不改动电脑本地工程")
-        self.btn_drawer_temp.clicked.connect(self._on_drawer_temp_pack)
-        act_row.addWidget(self.btn_drawer_temp)
-
-        drawer_layout.addLayout(act_row)
-
-        self.drawer.setVisible(False)
-        parent_layout.addWidget(self.drawer)
+        root_layout.addLayout(bottom_row)
 
     def _start_packaging(self):
         project = QgsProject.instance()
@@ -377,16 +272,12 @@ class QFieldSendDialog(QDialog):
         project_path = project.fileName()
         project_dir = os.path.normpath(os.path.dirname(project_path))
 
-        # Read custom project name from input edit if available
         if hasattr(self, 'project_name_edit') and self.project_name_edit:
             txt = self.project_name_edit.text().strip()
             if txt:
                 self.project_name = txt
 
-        self._cached_layers_dist = None
         project_name = self.project_name
-
-        # Safe main thread metadata pre-check
         external_layers = ProjectPackager.check_external_layers(project)
         dist_dir = tempfile.mkdtemp(prefix="qfield_drop_")
         zip_filename = f"{project_name}.zip"
@@ -432,70 +323,59 @@ class QFieldSendDialog(QDialog):
         self.pkg_info = pkg_info
         self.dist_dir = pkg_info['dist_dir']
 
-        # Update Top Info Bar: 只显示 大小，不显示包含文件数
         size_bytes = self.pkg_info.get('size_bytes', 0)
         size_mb = size_bytes / (1024 * 1024)
         if hasattr(self, 'size_lbl') and self.size_lbl:
             self.size_lbl.setText(f"大小: <b>{size_mb:.2f} MB</b>")
 
-        ext_count = len(self.pkg_info.get('external_layers', []))
-        if ext_count > 0:
-            self.btn_toggle_drawer.setText(f"查看详细 ({ext_count}) ▶")
-            self.btn_toggle_drawer.setStyleSheet("QPushButton { font-weight: bold; color: #D97706; }")
-            self.btn_toggle_drawer.setToolTip(f"检测到 {ext_count} 个外部图层，点击向右展开查看体积树图与一键归档")
-        else:
-            self.btn_toggle_drawer.setText("查看详细 ▶")
-            self.btn_toggle_drawer.setStyleSheet("")
-            self.btn_toggle_drawer.setToolTip("向右展开查看图层体积占比树图")
-
-        # 仅当侧边栏已展开时才刷新树图数据，避免默认折叠时在主线程进行无效磁盘扫描与布局计算
-        if self.drawer and self.drawer.isVisible():
-            self._refresh_drawer_data()
-
-        # Start or update server (reuse active server port without tearing down socket)
-        is_first_init = (self.tabs.count() == 0)
         self._init_server()
 
-        if is_first_init:
-            # Tab 0: Wireless QR & DeepLink Channels (Option B: 3 Sub-Tabs inside)
+        current_ip = self._get_selected_ip()
+        if self.tab_qr is None:
             self.tab_qr = QrDropTab(
-                self.port,
-                self.pkg_info['zip_filename'],
-                zip_path=self.pkg_info['zip_path'],
-                parent=self
-            )
-            self.tab_qr.ip_changed.connect(self._on_ip_changed)
-            self.tabs.addTab(self.tab_qr, get_icon("qr"), "扫码无线直传")
-
-            if self.mdns:
-                self.mdns.update_ip(self.tab_qr.get_selected_ip())
-
-            # Tab 1: LocalSend Push
-            self.tab_localsend = LocalSendTab(
-                get_local_ip_cb=self.tab_qr.get_selected_ip,
-                zip_path=self.pkg_info['zip_path'],
+                port=self.port,
                 zip_filename=self.pkg_info['zip_filename'],
+                ip=current_ip,
                 parent=self
             )
-            self.tabs.addTab(self.tab_localsend, get_icon("radio"), "LocalSend 免扫码")
-
-            if 0 <= self.initial_tab < self.tabs.count():
-                self.tabs.setCurrentIndex(self.initial_tab)
-                if self.initial_tab == 1 and hasattr(self, 'tab_localsend'):
-                    self.tab_localsend.start_scan()
-
-            self.tabs.currentChanged.connect(self._on_tab_changed)
+            self.qr_card_container.addWidget(self.tab_qr)
         else:
-            self.tab_qr.update_port_and_file(
-                self.port,
-                self.pkg_info['zip_filename'],
-                zip_path=self.pkg_info['zip_path']
-            )
-            self.tab_localsend.update_package(self.pkg_info['zip_path'], self.pkg_info['zip_filename'])
+            self.tab_qr.update_port_and_file(self.port, self.pkg_info['zip_filename'], ip=current_ip)
 
-        # Switch to Tabs page
+        if hasattr(self, 'mdns_lbl') and self.mdns_lbl:
+            self.mdns_lbl.setText(f"局域网通用地址: <code>http://qgis-drop.local:{self.port}/project.zip</code>")
+
         self.stack.setCurrentIndex(1)
         self.status_box.setText(f"投送服务已就绪，正在监听局域网端口 :{self.port}")
+
+    def _get_selected_ip(self) -> str:
+        if hasattr(self, 'ip_combo') and self.ip_combo:
+            ip = self.ip_combo.currentData()
+            if not ip:
+                ip = self.ip_combo.currentText().split(' ')[0]
+            return ip or "127.0.0.1"
+        return "127.0.0.1"
+
+    def _on_ip_combo_changed(self):
+        curr_idx = self.ip_combo.currentIndex()
+        if curr_idx >= 0:
+            tip = self.ip_combo.itemData(curr_idx, Qt.ToolTipRole)
+            if tip:
+                self.ip_combo.setToolTip(tip)
+        ip = self._get_selected_ip()
+        if self.mdns:
+            self.mdns.update_ip(ip)
+        if hasattr(self, 'tab_qr') and self.tab_qr:
+            self.tab_qr.set_ip(ip)
+
+    def _copy_firewall_cmd(self):
+        cmd = f'netsh advfirewall firewall add rule name="QField LAN Drop" dir=in action=allow protocol=TCP localport={self.port}'
+        QApplication.clipboard().setText(cmd)
+        QMessageBox.information(
+            self,
+            "已复制防火墙规则",
+            f"若手机因电脑防火墙拦截无法访问，请以管理员身份打开 PowerShell 运行以下命令：\n\n{cmd}\n\n已自动复制至剪贴板。"
+        )
 
     def _init_server(self):
         if not self.pkg_info:
@@ -518,274 +398,61 @@ class QFieldSendDialog(QDialog):
 
         if self.mdns:
             self.mdns.stop()
-        initial_ip = self.tab_qr.get_selected_ip() if hasattr(self, 'tab_qr') and self.tab_qr else "127.0.0.1"
+        initial_ip = self._get_selected_ip()
         self.mdns = MdnsResponder("qgis-drop.local", initial_ip)
         self.mdns.start()
 
-    def _on_tab_changed(self, idx: int):
-        if idx == 1 and hasattr(self, 'tab_localsend') and self.tab_localsend:
-            if not getattr(self.tab_localsend, 'has_scanned', False):
-                self.tab_localsend.start_scan()
-
-    def _on_ip_changed(self, ip: str):
-        if self.mdns:
-            self.mdns.update_ip(ip)
-
-    def _toggle_drawer(self, visible: Optional[bool] = None):
-        if not self.drawer:
-            return
-        if visible is None:
-            visible = not self.drawer.isVisible()
-
-        ext_count = len(self.pkg_info.get('external_layers', []))
-
-        if visible:
-            self.drawer.setVisible(True)
-            self.btn_toggle_drawer.setText("收起详细 ◀")
-            self._refresh_drawer_data(force_reload=False)
-            self.setMinimumWidth(940)
-            self.resize(940, max(self.height(), 400))
-        else:
-            self.drawer.setVisible(False)
-            btn_txt = f"查看详细 ({ext_count}) ▶" if ext_count > 0 else "查看详细 ▶"
-            self.btn_toggle_drawer.setText(btn_txt)
-            self.setMinimumWidth(480)
-            target_h = max(self.height(), 400)
-            if hasattr(self, 'left_widget') and self.left_widget:
-                self.left_widget.setMaximumWidth(460)
-            self.resize(480, target_h)
-            if hasattr(self, 'left_widget') and self.left_widget:
-                self.left_widget.setMaximumWidth(16777215)
-
-    def _refresh_drawer_data(self, force_reload: bool = False):
-        project = QgsProject.instance()
-        # 1. Update Treemap data with cache (Zero disk I/O on UI toggle)
-        if self.treemap:
-            if force_reload or self._cached_layers_dist is None:
-                self._cached_layers_dist = ProjectPackager.get_layers_size_distribution(project)
-            self.treemap.set_data(self._cached_layers_dist)
-
-        # 2. Update External layers list and micro warning pill
-        ext_layers = self.pkg_info.get('external_layers', [])
-        ext_count = len(ext_layers)
-
-        if self.drawer_warn_pill:
-            if ext_count > 0:
-                self.drawer_warn_pill.setText(f"⚠️ {ext_count} 个外部图层")
-                self.drawer_warn_pill.setToolTip("数据源位于工程目录之外，手机端可能无法加载。推荐点击下方按钮一键处理。")
-                self.drawer_warn_pill.setVisible(True)
-            else:
-                self.drawer_warn_pill.setVisible(False)
-
-        if self.ext_table:
-            self.ext_table.setRowCount(ext_count)
-            for row, item in enumerate(ext_layers):
-                self.ext_table.setItem(row, 0, QTableWidgetItem(item.get('name', '')))
-                sz = item.get('size', 0)
-                self.ext_table.setItem(row, 1, QTableWidgetItem(format_size(sz)))
-                self.ext_table.setItem(row, 2, QTableWidgetItem(item.get('path', '')))
-
-        if hasattr(self, 'drawer_tabs') and self.drawer_tabs:
-            self.drawer_tabs.setTabText(1, f"外部清单 ({ext_count})")
-
-    def _on_drawer_archive(self):
-        project = QgsProject.instance()
-        ext_layers = self.pkg_info.get('external_layers', [])
-        if not ext_layers:
-            QMessageBox.information(self, "提示", "当前工程所有图层均已位于工程目录内，无需归档。")
-            return
-
-        ret = QMessageBox.question(
-            self,
-            "确认归档到工程",
-            f"检测到 {len(ext_layers)} 个外部图层。\n\n"
-            "该操作将自动执行：\n"
-            "1. 在工程目录下创建 'data' 文件夹；\n"
-            "2. 将外部文件物理复制至该文件夹；\n"
-            "3. 将工程图层路径更新为相对路径并保存。\n\n"
-            "是否立即执行归档？",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes
-        )
-        if ret != QMessageBox.Yes:
-            return
-
-        self.btn_drawer_archive.setEnabled(False)
-        self.btn_drawer_archive.setText("归档中...")
-        QApplication.processEvents()
-
-        try:
-            ProjectPackager.archive_external_layers_to_project(project, repackage=False)
-            QMessageBox.information(
-                self,
-                "归档成功",
-                "外部图层已成功整理并归档到工程的 data/ 目录下！\n工程已自动转为绿色便携工程，即将重新打包。"
-            )
-            self._repackage()
-        except Exception as e:
-            QMessageBox.critical(self, "归档失败", f"归档外部图层时出错：\n{str(e)}")
-        finally:
-            self.btn_drawer_archive.setEnabled(True)
-            self.btn_drawer_archive.setText("📁 一键归档")
-
-    def _on_drawer_temp_pack(self):
-        project = QgsProject.instance()
-        ext_layers = self.pkg_info.get('external_layers', [])
-        if not ext_layers:
-            QMessageBox.information(self, "提示", "当前工程所有图层均在工程目录下，无需临时沙箱收集。")
-            return
-
-        if project.isDirty():
-            project.write()
-
-        self.btn_drawer_temp.setEnabled(False)
-        self.btn_drawer_temp.setText("沙箱打包中...")
-        self.status_box.setText("正在后台临时沙箱中收集外部图层并打包...")
-
-        self.temp_pkg_worker = TempPackageWorker(project.fileName(), self.project_name, ext_layers)
-        self.temp_pkg_worker.finished_signal.connect(self._on_temp_pack_finished)
-        self.temp_pkg_worker.start()
-
-    def _on_temp_pack_finished(self, success: bool, new_pkg: dict, err_msg: str):
-        if getattr(self, '_cleaned_up', False):
-            dist = new_pkg.get('dist_dir') if isinstance(new_pkg, dict) else None
-            if dist and os.path.exists(dist):
-                shutil.rmtree(dist, ignore_errors=True)
-            return
-
-        self.btn_drawer_temp.setEnabled(True)
-        self.btn_drawer_temp.setText("⚡ 临时沙箱打包")
-
-        if not success:
-            QMessageBox.critical(self, "临时打包失败", f"处理外部图层打包时出错：\n{err_msg}")
-            return
-
-        self._apply_temp_package(new_pkg)
-        QMessageBox.information(
-            self,
-            "沙箱打包就绪",
-            "已在临时沙箱中将外部图层全量打包！\n\n"
-            "本地工程保持原样，左侧二维码与推送通道已自动更新为自包含完整包，手机端可正常加载。"
-        )
-        if self.drawer and self.drawer.isVisible():
-            self._refresh_drawer_data()
-
-    def _apply_temp_package(self, pkg_info: dict):
-        """Hot-swap active distribution payload with temporary self-contained package."""
-        if self.dist_dir and os.path.exists(self.dist_dir) and self.dist_dir != pkg_info.get('dist_dir'):
-            shutil.rmtree(self.dist_dir, ignore_errors=True)
-
-        self.pkg_info = pkg_info
-        self.dist_dir = pkg_info['dist_dir']
-
-        if self.server:
-            self.server.update_payload(self.dist_dir, pkg_info['zip_filename'])
-
-        if hasattr(self, 'tab_qr') and self.tab_qr:
-            self.tab_qr.update_port_and_file(self.port, pkg_info['zip_filename'])
-        if hasattr(self, 'tab_localsend') and self.tab_localsend:
-            self.tab_localsend.update_package(pkg_info['zip_path'], pkg_info['zip_filename'])
-
-        if hasattr(self, 'size_lbl') and self.size_lbl:
-            smb = self.pkg_info.get('size_bytes', 0) / (1024 * 1024)
-            self.size_lbl.setText(f"大小: <b>{smb:.2f} MB</b>")
-
-        self.status_box.setText("已完成外部图层临时自包含打包，分发载荷已就绪！")
-
     def _repackage(self):
-        if hasattr(self, 'project_name_edit') and self.project_name_edit:
-            txt = self.project_name_edit.text().strip()
-            if txt:
-                self.project_name = txt
-
-        self._cached_layers_dist = None
-
-        if self.dist_dir and os.path.exists(self.dist_dir):
-            shutil.rmtree(self.dist_dir, ignore_errors=True)
-            self.dist_dir = None
-
+        if self.pkg_worker and self.pkg_worker.isRunning():
+            self.pkg_worker.cancel()
+            self.pkg_worker.wait(1500)
         self._start_packaging()
 
-    def _on_client_connected(self, client_ip: str):
-        self.progress_bar.setValue(0)
+    def _on_client_connected(self, client_ip: str, user_agent: str):
+        ua_summary = user_agent[:32] if user_agent else "Mobile Device"
+        self.status_box.setText(f"已连接: {client_ip} ({ua_summary})")
         self.progress_bar.show()
-        self.status_box.setText(f"手机 [{client_ip}] 已连接，正在投送工程包...")
+        self.progress_bar.setValue(0)
 
-    def _on_transfer_progress(self, client_ip: str, sent_bytes: int, total_bytes: int):
+    def _on_transfer_progress(self, sent_bytes: int, total_bytes: int):
         if total_bytes > 0:
             pct = int((sent_bytes / total_bytes) * 100)
             self.progress_bar.setValue(pct)
-            sent_mb = sent_bytes / (1024 * 1024)
-            tot_mb = total_bytes / (1024 * 1024)
-            self.status_box.setText(f"向 [{client_ip}] 发送数据: {sent_mb:.2f} MB / {tot_mb:.2f} MB ({pct}%)")
+            self.status_box.setText(f"正在发送至手机: {pct}% ({sent_bytes // 1024}/{total_bytes // 1024} KB)")
 
-    def _on_transfer_done(self, client_ip: str, filename: str):
-        self.progress_bar.setValue(100)
-        self.status_box.setText(f"成功投送至手机 [{client_ip}]！手机 QField 正在载入。")
+    def _on_transfer_done(self, client_ip: str, success: bool, msg: str):
+        self.progress_bar.hide()
+        if success:
+            self.status_box.setText("🎉 投送成功！手机端已唤醒 QField 导入工程。")
+            QMessageBox.information(
+                self, "投送成功",
+                f"工程已成功投送至手机 ({client_ip})！\n\n手机端 QField 正在自动解压并打开工程。"
+            )
+        else:
+            self.status_box.setText(f"发送中断: {msg}")
 
     def _on_server_error(self, err_msg: str):
         self.status_box.setText(f"服务异常: {err_msg}")
 
-    def _cleanup(self):
-        if getattr(self, '_cleaned_up', False):
-            return
-        self._cleaned_up = True
-
-        if self.pkg_worker and self.pkg_worker.isRunning():
-            try:
-                self.pkg_worker.cancel()
-                self.pkg_worker.wait(800)
-            except Exception:
-                pass
-            self.pkg_worker = None
-
-        tp_worker = getattr(self, '_temp_pack_worker', None)
-        if tp_worker and tp_worker.isRunning():
-            try:
-                tp_worker.finished_signal.disconnect()
-            except (TypeError, RuntimeError):
-                pass
-            tp_worker.wait(500)
-            self._temp_pack_worker = None
-
-        try:
-            if hasattr(self, 'tab_localsend') and self.tab_localsend:
-                self.tab_localsend.stop()
-        except (RuntimeError, AttributeError):
-            pass
-
-        try:
-            if self.mdns:
-                self.mdns.stop()
-                self.mdns = None
-        except (RuntimeError, AttributeError, OSError):
-            pass
-
-        try:
-            if self.server:
-                self.server.stop()
-                self.server = None
-        except (RuntimeError, AttributeError, OSError):
-            pass
-
-        try:
-            if self.dist_dir and os.path.exists(self.dist_dir):
-                shutil.rmtree(self.dist_dir, ignore_errors=True)
-                self.dist_dir = None
-        except (shutil.Error, OSError):
-            pass
+    def _open_help(self, section: str = "send_project"):
+        from .help_dialog import HelpDialog
+        HelpDialog.show_help(self, initial_section=section)
 
     def closeEvent(self, event):
         self._cleanup()
-        event.accept()
         super().closeEvent(event)
 
-    def reject(self):
-        self._cleanup()
-        super().reject()
-
-    def __del__(self):
-        try:
-            self._cleanup()
-        except Exception:
-            pass
+    def _cleanup(self):
+        self._cleaned_up = True
+        if self.pkg_worker and self.pkg_worker.isRunning():
+            self.pkg_worker.cancel()
+            self.pkg_worker.wait(1500)
+        if self.server:
+            self.server.stop()
+            self.server = None
+        if self.mdns:
+            self.mdns.stop()
+            self.mdns = None
+        if self.dist_dir and os.path.exists(self.dist_dir):
+            shutil.rmtree(self.dist_dir, ignore_errors=True)
+            self.dist_dir = None

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 730 175" width="1460" height="350" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" style="max-width:730px; display:block; margin: 12px auto; font-family: 'Segoe UI', sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748B" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#589632" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB" />
+    </marker>
+  </defs>
+  
+    <g filter="url(#shadow)">
+      <rect x="20" y="20" width="160" height="130" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+      <rect x="20" y="20" width="160" height="30" rx="8" fill="#589632"/>
+      <rect x="20" y="35" width="160" height="15" fill="#589632"/>
+      <text x="100" y="36" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">1. Click Drop Out</text>
+      <text x="100" y="85" font-size="11.5" fill="#475569" text-anchor="middle">Auto-save edits</text><text x="100" y="103" font-size="11.5" fill="#475569" text-anchor="middle">Exclude lock files</text>
+    </g><path d="M 180 85 L 213 85" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+    <g filter="url(#shadow)">
+      <rect x="195" y="20" width="160" height="130" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+      <rect x="195" y="20" width="160" height="30" rx="8" fill="#0284C7"/>
+      <rect x="195" y="35" width="160" height="15" fill="#0284C7"/>
+      <text x="275" y="36" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">2. Treemap &amp; Package</text>
+      <text x="275" y="85" font-size="11.5" fill="#475569" text-anchor="middle">Treemap file preview</text><text x="275" y="103" font-size="11.5" fill="#475569" text-anchor="middle">Async fast compression</text>
+    </g><path d="M 355 85 L 388 85" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+    <g filter="url(#shadow)">
+      <rect x="370" y="20" width="160" height="130" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+      <rect x="370" y="20" width="160" height="30" rx="8" fill="#2563EB"/>
+      <rect x="370" y="35" width="160" height="15" fill="#2563EB"/>
+      <text x="450" y="36" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">3. Transfer Channels</text>
+      <text x="450" y="85" font-size="11.5" fill="#475569" text-anchor="middle">• QR Scan &amp; Launch</text><text x="450" y="103" font-size="11.5" fill="#475569" text-anchor="middle">• LocalSend Direct</text><text x="450" y="121" font-size="11.5" fill="#475569" text-anchor="middle">• USB/ADB Push</text>
+    </g><path d="M 530 85 L 563 85" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+    <g filter="url(#shadow)">
+      <rect x="545" y="20" width="160" height="130" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+      <rect x="545" y="20" width="160" height="30" rx="8" fill="#10B981"/>
+      <rect x="545" y="35" width="160" height="15" fill="#10B981"/>
+      <text x="625" y="36" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">4. QField Ready</text>
+      <text x="625" y="85" font-size="11.5" fill="#475569" text-anchor="middle">Auto-extract project</text><text x="625" y="103" font-size="11.5" fill="#475569" text-anchor="middle">Ready for field survey</text>
+    </g>
+</svg>

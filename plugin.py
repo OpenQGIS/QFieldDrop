@@ -21,26 +21,38 @@ from .i18n_helper import tr, load_translator, unload_translator
 class QFieldDropPlugin:
     def __init__(self, iface: QgisInterface):
         self.iface = iface
+        self.toolbar = None
         self.action_send = None
         self.action_receive = None
         self.action_mobile = None
+        self.action_help = None
         self.dlg_send = None
         self.dlg_receive = None
         self.mobile_dlg = None
+        self.help_dlg = None
         self._standalone_server = None
         self.plugin_dir = os.path.dirname(os.path.abspath(__file__))
         self.translator = load_translator(self.plugin_dir)
 
     def _clean_stale_actions(self):
         """Purges any lingering ghost/stale actions from toolbars and menus."""
-        keywords = ("LAN Drop", "Drop Out", "Drop In", "QField 局域网直传", "投送工程至 QField", "接收 QField 成果", "手机助手")
-        obj_names = ("qfielddrop_action_send", "qfielddrop_action_receive", "qfielddrop_action_mobile")
+        keywords = ("LAN Drop", "Drop Out", "Drop In", "QField 局域网直传", "投送工程至 QField", "接收 QField 成果", "手机助手", "使用手册", "帮助中心", "Help Center")
+        obj_names = ("qfielddrop_action_send", "qfielddrop_action_receive", "qfielddrop_action_mobile", "qfielddrop_action_help")
 
-        # 1. Clean from all toolbars
+        # 1. Clean from all toolbars and delete stale dedicated toolbars
         try:
             main_win = self.iface.mainWindow()
             toolbars = main_win.findChildren(QToolBar) if main_win else []
-            for tb in toolbars:
+            for tb in list(toolbars):
+                # Remove stale dedicated toolbar instance
+                if tb.objectName() == "QFieldDropToolBar" or "QField LAN Drop" in (tb.windowTitle() or ""):
+                    try:
+                        main_win.removeToolBar(tb)
+                        tb.deleteLater()
+                    except (AttributeError, RuntimeError):
+                        pass
+                    continue
+
                 raw_acts = getattr(tb, 'actions', None)
                 acts = raw_acts() if callable(raw_acts) else (raw_acts or [])
                 for act in list(acts):
@@ -94,6 +106,9 @@ class QFieldDropPlugin:
         icon_send_path = _resolve_icon("icon_send.svg")
         icon_receive_path = _resolve_icon("icon_receive.svg")
         icon_mobile_path = _resolve_icon("icon_mobile.svg")
+        icon_help_path = _resolve_icon("icon_help.svg")
+        if not os.path.exists(icon_help_path):
+            icon_help_path = _resolve_icon("help-circle.svg")
 
         # Action 1: Outbound Dispatch
         self.action_send = QAction(
@@ -125,18 +140,44 @@ class QFieldDropPlugin:
         self.action_mobile.setStatusTip(tr("Install companion QML plugin onto mobile QField"))
         self.action_mobile.triggered.connect(self.run_mobile_install)
 
-        # Add all to Toolbar
-        self.iface.addToolBarIcon(self.action_send)
-        self.iface.addToolBarIcon(self.action_receive)
-        self.iface.addToolBarIcon(self.action_mobile)
+        # Action 4: Help & User Manual
+        self.action_help = QAction(
+            QIcon(icon_help_path),
+            tr("Help & User Manual"),
+            self.iface.mainWindow()
+        )
+        self.action_help.setObjectName("qfielddrop_action_help")
+        self.action_help.setStatusTip(tr("Open in-app help center and troubleshooting guide"))
+        self.action_help.triggered.connect(self.run_help)
+
+        # Create Dedicated Independent Toolbar
+        self.toolbar = self.iface.addToolBar(tr("QField LAN Drop"))
+        self.toolbar.setObjectName("QFieldDropToolBar")
+        self.toolbar.setToolTip(tr("QField LAN Drop"))
+        self.toolbar.addAction(self.action_send)
+        self.toolbar.addAction(self.action_receive)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.action_mobile)
+        self.toolbar.addAction(self.action_help)
 
         # Add to Menu
         self.iface.addPluginToMenu("&QField LAN Drop", self.action_send)
         self.iface.addPluginToMenu("&QField LAN Drop", self.action_receive)
         self.iface.addPluginToMenu("&QField LAN Drop", self.action_mobile)
+        self.iface.addPluginToMenu("&QField LAN Drop", self.action_help)
 
     def unload(self):
         """Cleans up toolbar icons and menu items when plugin is disabled/unloaded."""
+        if self.toolbar:
+            try:
+                main_win = self.iface.mainWindow()
+                if main_win:
+                    main_win.removeToolBar(self.toolbar)
+                self.toolbar.deleteLater()
+            except (AttributeError, RuntimeError):
+                pass
+            self.toolbar = None
+
         if self.dlg_send:
             try:
                 self.dlg_send.close()
@@ -158,6 +199,13 @@ class QFieldDropPlugin:
                 pass
             self.mobile_dlg = None
 
+        if self.help_dlg:
+            try:
+                self.help_dlg.close()
+            except (AttributeError, RuntimeError):
+                pass
+            self.help_dlg = None
+
         if self._standalone_server:
             try:
                 self._standalone_server.stop()
@@ -165,7 +213,7 @@ class QFieldDropPlugin:
                 pass
             self._standalone_server = None
 
-        for act in (self.action_send, self.action_receive, self.action_mobile):
+        for act in (self.action_send, self.action_receive, self.action_mobile, self.action_help):
             if act:
                 try:
                     self.iface.removePluginMenu("&QField LAN Drop", act)
@@ -175,6 +223,7 @@ class QFieldDropPlugin:
         self.action_send = None
         self.action_receive = None
         self.action_mobile = None
+        self.action_help = None
 
         # Unload QTranslator
         if self.translator:
@@ -264,6 +313,19 @@ class QFieldDropPlugin:
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "QField LAN Drop", f"打开助手安装对话框失败: {str(e)}", level=Qgis.Warning, duration=5
+            )
+
+    def run_help(self, section_id: str = "overview"):
+        """Triggered by [使用手册与帮助中心] action or dialog context help buttons."""
+        from .ui.help_dialog import HelpDialog
+
+        try:
+            self.help_dlg = HelpDialog.show_help(
+                parent=self.iface.mainWindow(), section_id=section_id
+            )
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                "QField LAN Drop", f"打开帮助中心失败: {str(e)}", level=Qgis.Warning, duration=5
             )
 
     def _is_send_dialog_active(self) -> bool:

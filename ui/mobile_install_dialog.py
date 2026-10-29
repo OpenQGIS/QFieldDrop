@@ -73,7 +73,6 @@ class MobileInstallDialog(QDialog):
 
         self._init_ui()
         self._update_qr_and_urls()
-        self._refresh_adb_devices()
 
     def _get_mobile_version(self) -> str:
         plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -90,16 +89,11 @@ class MobileInstallDialog(QDialog):
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(8)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(12, 12, 12, 12)
 
-        self.tabs = QTabWidget()
-
-        # ==========================================
-        # Tab 1: 局域网扫码直装 (优先推荐)
-        # ==========================================
-        tab_qr = QWidget()
-        qr_layout = QVBoxLayout(tab_qr)
+        qr_group = QGroupBox("QField 伴侣插件扫码安装")
+        qr_layout = QVBoxLayout(qr_group)
         qr_layout.setSpacing(8)
         qr_layout.setContentsMargins(12, 10, 12, 10)
 
@@ -168,64 +162,24 @@ class MobileInstallDialog(QDialog):
 
         mid_row.addLayout(right_col, 1)
         qr_layout.addLayout(mid_row)
-        qr_layout.addStretch()
-
-        self.tabs.addTab(tab_qr, get_icon("qr"), "局域网扫码直装 (推荐)")
-
-        # ==========================================
-        # Tab 2: Android ADB 极速直接写入
-        # ==========================================
-        tab_adb = QWidget()
-        adb_layout = QVBoxLayout(tab_adb)
-        adb_layout.setSpacing(10)
-        adb_layout.setContentsMargins(14, 12, 14, 12)
-
-        adb_desc = QLabel(
-            "<b>数据线极速免扫码写入：</b><br>"
-            "手机连接 USB 数据线并开启【开发者选项 ➔ USB 调试】，电脑可直接将伴侣插件秒级写入 QField 沙盒内部："
-        )
-        adb_desc.setWordWrap(True)
-        adb_layout.addWidget(adb_desc)
-
-        dev_row = QHBoxLayout()
-        dev_row.addWidget(QLabel("目标设备:"))
-        self.dev_combo = QComboBox()
-        self.dev_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        dev_row.addWidget(self.dev_combo, 1)
-
-        btn_refresh_dev = QPushButton("刷新设备")
-        btn_refresh_dev.setIcon(get_icon("refresh"))
-        btn_refresh_dev.clicked.connect(self._refresh_adb_devices)
-        dev_row.addWidget(btn_refresh_dev)
-        adb_layout.addLayout(dev_row)
-
-        self.btn_install_adb = QPushButton("⚡ 一键写入手机 QField 插件目录")
-        self.btn_install_adb.setIcon(get_icon("zap"))
-        self.btn_install_adb.setDefault(True)
-        self.btn_install_adb.clicked.connect(self._install_via_adb)
-        adb_layout.addWidget(self.btn_install_adb)
-
-        lbl_adb_tip = QLabel(
-            "<small style='color: #64748B;'>💡 提示：写入完成后，请在手机上退出并重新打开 QField，进入【设置 ➔ 插件】确认开启即可。</small>"
-        )
-        lbl_adb_tip.setWordWrap(True)
-        adb_layout.addWidget(lbl_adb_tip)
-
-        adb_layout.addStretch()
-
-        self.tabs.addTab(tab_adb, get_icon("zap"), "Android ADB 数据线写入")
-
-        self.tabs.setCurrentIndex(0)
-        main_layout.addWidget(self.tabs, 1)
+        main_layout.addWidget(qr_group, 1)
 
         # 3. Bottom Native Actions with QDialogButtonBox (Localized "关闭")
         bottom_row = QHBoxLayout()
+        btn_help = QPushButton("? 使用帮助")
+        btn_help.setIcon(get_icon("help-circle"))
+        btn_help.clicked.connect(lambda: self._open_help("mobile_setup"))
+        bottom_row.addWidget(btn_help)
         bottom_row.addStretch()
         self.button_box = QDialogButtonBox()
         btn_close = self.button_box.addButton("关闭", QDialogButtonBox.RejectRole)
         btn_close.clicked.connect(self.close)
         bottom_row.addWidget(self.button_box)
         main_layout.addLayout(bottom_row)
+
+    def _open_help(self, section_id: str = "mobile_setup"):
+        from .help_dialog import HelpDialog
+        HelpDialog.show_help(parent=self, section_id=section_id)
 
     def _on_ip_changed(self):
         curr_idx = self.ip_combo.currentIndex()
@@ -258,56 +212,6 @@ class MobileInstallDialog(QDialog):
             self, "已复制",
             f"手机端插件安装地址已复制：\n{txt}\n\n在手机 QField【设置】→【插件】→【从 URL 安装】粘贴即可。"
         )
-
-    def _refresh_adb_devices(self):
-        self.dev_combo.clear()
-        self.dev_combo.addItem("正在检测 Android 设备...", "")
-        self.btn_install_adb.setEnabled(False)
-        self._adb_detect_worker = AdbDetectWorker()
-        self._adb_detect_worker.finished_signal.connect(self._on_adb_detected)
-        self._adb_detect_worker.start()
-
-    def _on_adb_detected(self, avail: bool, devices: list):
-        self.dev_combo.clear()
-        if not avail:
-            self.dev_combo.addItem("未检测到 adb (需安装 Platform Tools)", "")
-            self.btn_install_adb.setEnabled(False)
-            return
-
-        if not devices:
-            self.dev_combo.addItem("未连接任何 Android 设备", "")
-            self.btn_install_adb.setEnabled(False)
-        else:
-            for serial, status in devices:
-                self.dev_combo.addItem(f"{serial} ({status})", serial)
-            self.btn_install_adb.setEnabled(True)
-
-    def _install_via_adb(self):
-        serial = self.dev_combo.currentData()
-        if not serial:
-            QMessageBox.warning(self, "提示", "请选择已连接的 Android 设备！")
-            return
-
-        plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        mobile_src = os.path.join(plugin_root, "mobile")
-        if not os.path.exists(mobile_src):
-            mobile_src = os.path.join(os.path.dirname(plugin_root), "QFieldDrop-Mobile")
-
-        self.btn_install_adb.setEnabled(False)
-        self.btn_install_adb.setText("正在写入手机 (后台传输)...")
-
-        self.adb_worker = AdbInstallWorker(mobile_src, serial)
-        self.adb_worker.finished_signal.connect(self._on_install_finished)
-        self.adb_worker.start()
-
-    def _on_install_finished(self, success: bool, msg: str):
-        self.btn_install_adb.setEnabled(True)
-        self.btn_install_adb.setText("一键写入手机 QField (ADB)")
-
-        if success:
-            QMessageBox.information(self, "安装成功", msg)
-        else:
-            QMessageBox.warning(self, "安装失败", msg)
 
     def _export_offline_zip(self):
         file_path, _ = QFileDialog.getSaveFileName(

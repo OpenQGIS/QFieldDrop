@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" width="620" height="375" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" style="max-width:100%; height:auto; display:block; margin: 12px auto; font-family: 'Microsoft YaHei', sans-serif;">
+  <defs>
+    <filter id="win-shadow" x="-3%" y="-2%" width="106%" height="108%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  
+  <g filter="url(#win-shadow)" transform="translate(15, 10)">
+    <!-- Frame -->
+    <rect width="730" height="380" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" />
+    <rect width="730" height="34" rx="10" fill="#F1F5F9" />
+    <rect y="20" width="730" height="14" fill="#F1F5F9" />
+    <circle cx="16" cy="17" r="4.5" fill="#EF4444" />
+    <circle cx="30" cy="17" r="4.5" fill="#F59E0B" />
+    <circle cx="44" cy="17" r="4.5" fill="#10B981" />
+    <text x="65" y="18" font-size="12" font-weight="600" fill="#334155" dominant-baseline="central">QField 成果接收 - 手机外业回传 (Drop In)</text>
+
+    <!-- Top Web Scanner Section -->
+    <g transform="translate(20, 50)">
+      <rect width="690" height="135" rx="6" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+      
+      <rect x="20" y="15" width="105" height="105" rx="6" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <rect x="30" y="25" width="24" height="24" fill="#0F172A"/>
+      <rect x="90" y="25" width="24" height="24" fill="#0F172A"/>
+      <rect x="30" y="85" width="24" height="24" fill="#0F172A"/>
+      <rect x="62" y="57" width="22" height="22" rx="3" fill="#2563EB"/>
+      <polygon points="73,63 67,73 79,73" fill="#FFF"/>
+
+      <text x="145" y="32" font-size="13" font-weight="bold" fill="#0F172A">手机扫码极速回传外业成果</text>
+      <text x="145" y="54" font-size="11.5" fill="#64748B">手机相机或浏览器扫码，直接打开网页选择 GPKG 矢量包或现场照片上传</text>
+      
+      <rect x="145" y="70" width="320" height="26" rx="4" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="155" y="83" font-size="11" fill="#2563EB" dominant-baseline="central">http://192.168.43.120:8899/return</text>
+
+      <rect x="480" y="70" width="110" height="26" rx="4" fill="#E2E8F0"/>
+      <text x="535" y="83" font-size="11" fill="#334155" text-anchor="middle" dominant-baseline="central">复制回传网址</text>
+    </g>
+
+    <!-- Bottom Records Table -->
+    <g transform="translate(20, 200)">
+      <text x="5" y="12" font-size="12" font-weight="bold" fill="#1E293B">已接收的外业成果台账记录</text>
+      <rect y="22" width="690" height="26" fill="#F1F5F9" stroke="#E2E8F0"/>
+      <text x="15" y="35" font-size="11" font-weight="bold" fill="#475569" dominant-baseline="central">文件名</text>
+      <text x="260" y="35" font-size="11" font-weight="bold" fill="#475569" dominant-baseline="central">大小</text>
+      <text x="360" y="35" font-size="11" font-weight="bold" fill="#475569" dominant-baseline="central">接收时间</text>
+      <text x="520" y="35" font-size="11" font-weight="bold" fill="#475569" dominant-baseline="central">来源设备</text>
+
+      <!-- Row 1 -->
+      <rect y="48" width="690" height="28" fill="#EFF6FF" stroke="#BFDBFE"/>
+      <text x="15" y="62" font-size="11.5" font-weight="bold" fill="#1D4ED8" dominant-baseline="central">📄 field_survey_20261028.gpkg</text>
+      <text x="260" y="62" font-size="11" fill="#1E293B" dominant-baseline="central">14.8 MB</text>
+      <text x="360" y="62" font-size="11" fill="#475569" dominant-baseline="central">17:42:05</text>
+      <text x="520" y="62" font-size="11" fill="#10B981" font-weight="bold" dominant-baseline="central">Redmi Note 12</text>
+
+      <g transform="translate(0, 88)">
+        <rect width="135" height="32" rx="4" fill="#589632"/>
+        <text x="67" y="16" font-size="12" font-weight="bold" fill="#FFF" text-anchor="middle" dominant-baseline="central">载入至当前工程</text>
+
+        <rect x="145" width="115" height="32" rx="4" fill="#FFFFFF" stroke="#94A3B8"/>
+        <text x="202" y="16" font-size="12" fill="#334155" text-anchor="middle" dominant-baseline="central">打开所在目录</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Badges -->
+  
+    <g transform="translate(80, 95)">
+      <circle cx="0" cy="0" r="13" fill="#2563EB" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">1</text>
+    </g>
+  
+    <g transform="translate(380, 240)">
+      <circle cx="0" cy="0" r="13" fill="#F59E0B" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">2</text>
+    </g>
+  
+    <g transform="translate(100, 320)">
+      <circle cx="0" cy="0" r="13" fill="#16A34A" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="0" y="0.5" font-size="13" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">3</text>
+    </g>
+
+  <!-- Bottom Annotation Explanations -->
+  <g transform="translate(40, 410)">
+    <rect width="680" height="36" rx="6" fill="#F1F5F9" stroke="#E2E8F0"/>
+    <text x="20" y="18" font-size="12" font-weight="bold" fill="#2563EB" dominant-baseline="central">① 手机扫码打开上传页</text>
+    <text x="245" y="18" font-size="12" font-weight="bold" fill="#D97706" dominant-baseline="central">② 成果自动进入台账记录</text>
+    <text x="470" y="18" font-size="12" font-weight="bold" fill="#16A34A" dominant-baseline="central">③ 一键载入地图对比质检</text>
+  </g>
+
+</svg>

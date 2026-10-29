@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>01. Mobile Companion Setup - QField LAN Drop</title>
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --qgis-green: #589632;
+      --bg-main: #FFFFFF;
+      --bg-sidebar: #F8FAFC;
+      --border-color: #E2E8F0;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --code-bg: #F1F5F9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: var(--text-main);
+      background: var(--bg-main);
+      display: flex;
+      min-height: 100vh;
+      line-height: 1.65;
+    }
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      overflow-y: auto;
+      z-index: 10;
+    }
+    .sidebar-header {
+      padding: 18px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: bold;
+      font-size: 15px;
+      color: #0F172A;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sidebar-nav {
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      color: var(--text-main);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 13.5px;
+      transition: background 0.15s;
+    }
+    .nav-item:hover { background: #E2E8F0; }
+    .nav-item.active {
+      background: var(--primary);
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+    /* Main Content */
+    .content-wrapper {
+      margin-left: 280px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 960px;
+      padding: 32px 48px;
+    }
+    .top-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .lang-segmented {
+      display: inline-flex;
+      align-items: center;
+      background: #F1F5F9;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .lang-tab {
+      font-size: 12.5px;
+      padding: 4px 12px;
+      border-radius: 4px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .lang-tab.active {
+      background: #FFFFFF;
+      color: var(--primary);
+      font-weight: bold;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .lang-tab.link {
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .lang-tab.link:hover {
+      color: var(--text-main);
+      background: #E2E8F0;
+    }
+    /* Typography */
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 18px; color: #0F172A; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+    h2 { font-size: 19px; font-weight: 600; margin-top: 32px; margin-bottom: 14px; color: #0F172A; border-bottom: 1px solid #F1F5F9; padding-bottom: 6px; }
+    h3 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 10px; color: #334155; }
+    p { margin-bottom: 14px; font-size: 14.5px; color: #334155; }
+    ul, ol { margin-left: 24px; margin-bottom: 16px; font-size: 14.5px; }
+    li { margin-bottom: 6px; }
+    hr { border: 0; border-top: 1px solid var(--border-color); margin: 28px 0; }
+    /* Callouts */
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 4px solid var(--primary);
+      background: #EFF6FF;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+    }
+    blockquote.blockquote-tip { border-left-color: #10B981; background: #ECFDF5; color: #065F46; }
+    blockquote.blockquote-warning { border-left-color: #F59E0B; background: #FEF3C7; color: #92400E; }
+    /* Code */
+    code { font-family: "JetBrains Mono", Consolas, monospace; background: var(--code-bg); color: #BE185D; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #0F172A; color: #F8FAFC; padding: 14px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    /* Tables */
+    .table-container { overflow-x: auto; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border: 1px solid var(--border-color); padding: 10px 14px; text-align: left; }
+    th { background: #F8FAFC; font-weight: 600; }
+    tr:nth-child(even) { background: #FBFCFD; }
+    /* Images */
+    .doc-img { max-width: 100%; height: auto; display: block; margin: 20px auto; border-radius: 8px; }
+    /* Pager */
+    .pager { display: flex; justify-content: space-between; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+    .pager-btn { text-decoration: none; padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13.5px; color: var(--text-main); font-weight: 500; transition: all 0.15s; }
+    .pager-btn:hover { border-color: var(--primary); color: var(--primary); }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .content-wrapper { margin-left: 0; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span>🚀</span>
+      <span>QField LAN Drop</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="overview.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">00. Overview &amp; Concepts</span></a>
+<a href="mobile_setup.html" class="nav-item active"><span class="nav-icon">📖</span><span class="nav-label">01. Mobile Companion Setup</span></a>
+<a href="send_project.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">02. Send to Mobile (Drop Out)</span></a>
+<a href="receive_results.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">03. Receive Results (Drop In)</span></a>
+<a href="network_guide.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">04. Field Networking Guide</span></a>
+<a href="faq.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">05. Troubleshooting &amp; FAQ</span></a>
+<a href="appendix.html" class="nav-item"><span class="nav-icon">📖</span><span class="nav-label">06. Appendix &amp; Advanced Tips</span></a>
+    </nav>
+  </aside>
+  <main class="content-wrapper">
+    <div class="top-toolbar">
+      <div class="lang-segmented">
+        <span class="lang-tab active">🌐 English</span>
+        <a href="../zh_CN/mobile_setup.html" class="lang-tab link">🇨🇳 简体中文</a>
+      </div>
+    </div>
+    <article class="doc-body">
+      <h1>📱 01. Mobile Companion Setup</h1>
+<p>First-time setup requires installing the companion plugin onto your mobile device once.</p>
+<div class="mockup-window">
+<div class="mockup-titlebar">
+<span class="mockup-dot red"></span><span class="mockup-dot yellow"></span><span class="mockup-dot green"></span>
+<p>&nbsp;<b>QField Mobile Companion Setup</b></p>
+</div>
+<div style="padding: 8px 14px; background-color: #F8FAFC; border-bottom: 1px solid #E2E8F0;">
+<span class="mockup-tab-active">Method 1: QField QR Install</span>&nbsp;&nbsp;
+<span class="mockup-tab-inactive">Method 2: ADB Push</span>
+</div>
+<div class="mockup-body">
+<table width="100%" border="0" cellpadding="4" style="border: none;">
+<tr style="border: none; background: transparent;">
+<td width="130" align="center" valign="top" style="border: none; background-color: #F8FAFC; padding: 10px; border-radius: 6px;">
+<img src="../../assets/diagrams/qr_sample.svg" width="105" height="105" style="margin: 0 auto; display: block;" />
+<div style="margin-top: 6px;"><span class="step-badge blue">①</span><b>Scan QR</b></div>
+</td>
+<td valign="top" style="border: none; padding-left: 16px;">
+<p style="font-size: 13.5px; font-weight: bold; color: #0F172A; margin-bottom: 6px;">
+<p>Install companion inside QField:</p>
+</p>
+<p style="font-size: 13px; color: #334155; margin-bottom: 4px;">
+<ol>
+<li>Open <b>QField</b> on phone ➔ tap top-left menu ➔ <b>【Settings】</b> ➔ <b>【Plugins】</b> ➔ <b>【Install from URL】</b></li>
+</ol>
+</p>
+<p style="font-size: 13px; color: #334155; margin-bottom: 10px;">
+<ol>
+<li>Tap the <b>【📷 Camera Scanner】</b> icon on the right, point at the QR code to auto-install</li>
+</ol>
+</p>
+<p style="font-size: 13px; font-weight: bold; color: #0F172A; margin-bottom: 4px;">
+<span class="step-badge green">②</span> Manual download URL for rugged devices:
+</p>
+<div style="background-color: #F1F5F9; border: 1px solid #CBD5E1; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 12.5px; color: #2563EB; margin-bottom: 10px;">
+<p>http://192.168.43.120:8899/mobile.zip</p>
+</div>
+<div>
+<span class="step-badge purple">③</span>
+<span style="background-color: #6366F1; color: #FFFFFF; font-weight: bold; padding: 5px 12px; border-radius: 4px; font-size: 12px; display: inline-block;">
+<p>⚡ USB / ADB One-Click Push</p>
+</span>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="mockup-footer">
+<span class="step-badge blue">①</span> QField [Install from URL] Scan &nbsp;&nbsp;|&nbsp;&nbsp;
+<span class="step-badge green">②</span> Manual Download URL &nbsp;&nbsp;|&nbsp;&nbsp;
+<span class="step-badge purple">③</span> USB 1-Click ADB Push
+</div>
+</div>
+<hr />
+<h2>🛠️ Step-by-Step UI Guide</h2>
+<p>Click <strong><code>[ 📱 Mobile Setup ]</code></strong> on the toolbar to open the installer dialog:</p>
+<h3>Badge ①: In-App QField QR Scanner (⭐ Recommended)</h3>
+<ol>
+<li>Open <strong>QField</strong> on your mobile phone;</li>
+<li>Tap top-left menu ➔ <strong>【Settings】</strong> ➔ <strong>【Plugins】</strong> tab;</li>
+<li>Tap <strong>【Install from URL】</strong>, then tap the <strong>【📷 Camera Scanner】</strong> icon;</li>
+<li>Point at the QR code on your PC screen; QField will auto-install and enable it.</li>
+</ol>
+<hr />
+<h3>Badge ②: Manual URL for Rugged Devices</h3>
+<p>For field devices without a rear camera:</p>
+<ul>
+<li>In QField's 【Install from URL】 box, type the address shown:</li>
+</ul>
+<pre><code class="language-plaintext">  http://192.168.43.120:8899/mobile.zip</code></pre>
+<ul>
+<li>Tap OK to install.</li>
+</ul>
+<hr />
+<h3>Badge ③: One-Click USB Cable Injection</h3>
+<p>If you have a USB cable connected:</p>
+<ol>
+<li>Connect phone with <strong>USB Debugging</strong> enabled;</li>
+<li>Click <strong>"⚡ ADB Push"</strong> on your PC;</li>
+<li>The plugin silently writes into QField's private sandbox folder!</li>
+</ol>
+<hr />
+<p>👉 Next: <a href="send_project.html" class="chapter-link">📤 02. Send Project to Mobile (Drop Out)</a>.</p>
+    </article>
+    <div class="pager">
+      <div><a href="overview.html" class="pager-btn prev">◀ Prev: 00. Overview &amp; Concepts</a></div>
+      <div><a href="send_project.html" class="pager-btn next">02. Send to Mobile (Drop Out) ▶</a></div>
+    </div>
+  </main>
+</body>
+</html>

@@ -10,9 +10,13 @@ _zh_translations = {
     "Drop Out (Send to QField)": "投送工程至 QField (Drop Out)",
     "Drop In (Receive from QField)": "接收 QField 成果 (Drop In)",
     "Install QField Mobile Companion": "安装 QField 手机助手 (Mobile Setup)",
+    "Help & User Manual": "使用手册与帮助中心 (Help)",
     "Save, package and transfer current project to QField via QR/LocalSend/ADB": "一键保存、打包并投送当前工程至外业手机 QField (扫码唤醒 / LocalSend / ADB)",
     "Start receiving service and retrieve field updates via Web/ADB": "一键开启成果接收服务，从手机回传外业成果 (网页扫码 / ADB拉取，无需重新打包)",
     "Install companion QML plugin onto mobile QField": "为手机 QField 安装配套助手插件 (扫码安装 / QField URL / ADB写入 / 离线ZIP)",
+    "Open in-app help center and troubleshooting guide": "打开内置离线图文使用手册与故障排查指南",
+    "Help": "帮助",
+    "User Manual": "使用手册",
 
     # 对话框标题
     "QField LAN Drop - Outbound Dispatch (Drop Out)": "QField 局域网直传 - 投送至手机 (Drop Out)",

@@ -1,0 +1,266 @@
+/* QField LAN Drop - In-App Help Center Modern Stylesheet */
+body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1E293B;
+    background-color: #FFFFFF;
+    margin: 16px 24px;
+}
+
+h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0F172A;
+    border-bottom: 2px solid #E2E8F0;
+    padding-bottom: 8px;
+    margin-top: 10px;
+    margin-bottom: 16px;
+}
+
+h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1E293B;
+    border-bottom: 1px solid #F1F5F9;
+    padding-bottom: 6px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+}
+
+h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 18px;
+    margin-bottom: 8px;
+}
+
+p, li {
+    font-size: 13.5px;
+    color: #334155;
+    margin-bottom: 8px;
+}
+
+ul, ol {
+    padding-left: 24px;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+li {
+    margin-bottom: 6px;
+}
+
+/* Callouts / Blockquotes */
+blockquote {
+    border-left: 4px solid #3B82F6;
+    background-color: #EFF6FF;
+    color: #1E40AF;
+    margin: 12px 0;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+}
+
+blockquote.warning {
+    border-left: 4px solid #F59E0B;
+    background-color: #FEF3C7;
+    color: #92400E;
+}
+
+blockquote.tip {
+    border-left: 4px solid #10B981;
+    background-color: #ECFDF5;
+    color: #065F46;
+}
+
+/* Inline Code & Code Blocks */
+code {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 12.5px;
+    background-color: #F1F5F9;
+    color: #BE185D;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #E2E8F0;
+}
+
+pre {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 12px;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0;
+    overflow-x: auto;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 14px 0;
+    font-size: 13px;
+}
+
+th, td {
+    border: 1px solid #CBD5E1;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+th {
+    background-color: #F1F5F9;
+    font-weight: 600;
+    color: #1E293B;
+}
+
+tr:nth-child(even) {
+    background-color: #F8FAFC;
+}
+
+/* Links */
+a {
+    color: #2563EB;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #1D4ED8;
+}
+
+/* Simulated QGIS UI Buttons */
+.qgis-btn {
+    display: inline-block;
+    background-color: #F8FAFC;
+    color: #1E293B;
+    border: 1px solid #94A3B8;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.qgis-btn-green {
+    background-color: #589632;
+    color: #FFFFFF;
+    border: 1px solid #487A29;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.qgis-btn-blue {
+    background-color: #2563EB;
+    color: #FFFFFF;
+    border: 1px solid #1D4ED8;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Responsive Image / SVG */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 16px auto;
+    border-radius: 6px;
+}
+
+/* Native High-DPI UI Window Mockups (100% Crisp Font Rendering) */
+.mockup-window {
+    border: 1.5px solid #CBD5E1;
+    border-radius: 8px;
+    background-color: #FFFFFF;
+    margin: 18px 0;
+}
+
+.mockup-titlebar {
+    background-color: #F1F5F9;
+    padding: 8px 12px;
+    border-bottom: 1px solid #CBD5E1;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.mockup-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.mockup-dot.red { background-color: #EF4444; }
+.mockup-dot.yellow { background-color: #F59E0B; }
+.mockup-dot.green { background-color: #10B981; }
+
+.mockup-body {
+    padding: 12px 16px;
+    background-color: #FFFFFF;
+}
+
+.mockup-tab-active {
+    display: inline-block;
+    padding: 5px 12px;
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-bottom: 2px solid #2563EB;
+    font-weight: bold;
+    color: #2563EB;
+    font-size: 12px;
+}
+
+.mockup-tab-inactive {
+    display: inline-block;
+    padding: 5px 12px;
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    color: #64748B;
+    font-size: 12px;
+}
+
+.mockup-input {
+    display: inline-block;
+    background-color: #FFFFFF;
+    border: 1px solid #94A3B8;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #0F172A;
+}
+
+.mockup-footer {
+    background-color: #F8FAFC;
+    padding: 8px 14px;
+    border-top: 1px solid #E2E8F0;
+    font-size: 12px;
+    color: #475569;
+}
+
+.step-badge {
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    border-radius: 9px;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: bold;
+    color: #FFFFFF;
+    padding: 0 4px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.step-badge.blue { background-color: #2563EB; }
+.step-badge.red { background-color: #EF4444; }
+.step-badge.green { background-color: #10B981; }
+.step-badge.amber { background-color: #D97706; }
+.step-badge.purple { background-color: #7C3AED; }

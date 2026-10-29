@@ -150,7 +150,6 @@ class QFieldReceiveDialog(QDialog):
 
         # 3. Scan existing files in upload directory
         self._scan_existing_returns()
-        self._refresh_adb_devices()
 
     def _init_server(self):
         """Starts background server listening for /upload requests."""
@@ -200,20 +199,17 @@ class QFieldReceiveDialog(QDialog):
 
         layout.addWidget(info_group)
 
-        # 2. Native QTabWidget for Inbound Channels
-        self.tabs = QTabWidget()
-
-        # Tab 1: Mobile Scan & QField LAN Return (Two-Column Layout)
-        tab_web = QWidget()
-        web_layout = QHBoxLayout(tab_web)
+        # 2. Main QR Inbound Return Card
+        qr_group = QGroupBox("手机扫码回传")
+        web_layout = QHBoxLayout(qr_group)
         web_layout.setContentsMargins(10, 10, 10, 10)
         web_layout.setSpacing(14)
 
         # Left Column: QR Code Image
         self.qr_label = QLabel()
-        self.qr_label.setFixedSize(150, 150)
+        self.qr_label.setFixedSize(145, 145)
         self.qr_label.setAlignment(ALIGN_CENTER)
-        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid);")
+        self.qr_label.setStyleSheet("background-color: #FFFFFF; border: 1px solid palette(mid); border-radius: 4px;")
         web_layout.addWidget(self.qr_label, 0, Qt.AlignVCenter)
 
         # Right Column: Network selector + Tip + URL + Copy Button
@@ -237,9 +233,9 @@ class QFieldReceiveDialog(QDialog):
 
         qr_tip = QLabel(
             "<b>扫码回传指引:</b><br>"
-            "① 手机自带相机/微信扫左侧二维码，点击复制网址；<br>"
-            "② 打开手机 QField，点击顶部图标即可全自动配对；<br>"
-            "③ 或扫码后在手机网页点击【唤醒 QField】一键直达。"
+            "① 手机自带相机/微信扫左侧二维码打开轻量回传页；<br>"
+            "② 勾选修改后的矢量图层或现场照片，点击【立即回传】；<br>"
+            "③ 电脑自动接收归档至下方列表，安全不覆盖原始工程。"
         )
         qr_tip.setWordWrap(True)
         tip_f = qr_tip.font()
@@ -259,41 +255,7 @@ class QFieldReceiveDialog(QDialog):
         right_col.addWidget(btn_copy_upload, 0, Qt.AlignLeft)
 
         web_layout.addLayout(right_col, 1)
-        self.tabs.addTab(tab_web, get_icon("qr"), "无线扫码 / QField 直传")
-
-        # Tab 2: Android ADB Pull
-        tab_adb = QWidget()
-        tab_adb.setToolTip("通过 USB 或无线调试连接的 Android 手机，免打开网页，直接穿透系统沙盒将 QField 最新工程与照片拉回电脑")
-        adb_layout = QVBoxLayout(tab_adb)
-        adb_layout.setContentsMargins(12, 10, 12, 10)
-        adb_layout.setSpacing(8)
-
-        dev_row = QHBoxLayout()
-        self.dev_combo = QComboBox()
-        self.dev_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        dev_row.addWidget(self.dev_combo, 1)
-
-        btn_refresh_dev = QPushButton("刷新")
-        btn_refresh_dev.setIcon(get_icon("refresh"))
-        btn_refresh_dev.clicked.connect(self._refresh_adb_devices)
-        dev_row.addWidget(btn_refresh_dev)
-
-        self.btn_browse_adb = QPushButton("浏览...")
-        self.btn_browse_adb.setIcon(get_icon("folder"))
-        self.btn_browse_adb.clicked.connect(self._browse_custom_adb)
-        dev_row.addWidget(self.btn_browse_adb)
-        adb_layout.addLayout(dev_row)
-
-        self.btn_pull = QPushButton("拉取成果至本地")
-        self.btn_pull.setIcon(get_icon("download"))
-        self.btn_pull.setDefault(True)
-        self.btn_pull.clicked.connect(self._do_adb_pull)
-        adb_layout.addWidget(self.btn_pull)
-
-        adb_layout.addStretch()
-        self.tabs.addTab(tab_adb, get_icon("zap"), "Android ADB 拉取")
-
-        layout.addWidget(self.tabs)
+        layout.addWidget(qr_group)
 
         # 3. Received Archives Table & Management
         group_records = QGroupBox("外业成果归档记录")
@@ -352,6 +314,11 @@ class QFieldReceiveDialog(QDialog):
 
         self.status_box = QLabel(f"成果接收服务已就绪，正在监听局域网端口 :{self.port}")
         bottom_row.addWidget(self.status_box, 1)
+
+        self.btn_help = QPushButton("? 帮助")
+        self.btn_help.setIcon(get_icon("help-circle"))
+        self.btn_help.clicked.connect(lambda: self._open_help("receive_results"))
+        bottom_row.addWidget(self.btn_help)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Close)
         self.button_box.rejected.connect(self.close)
@@ -786,6 +753,10 @@ class QFieldReceiveDialog(QDialog):
             except (RuntimeError, AttributeError, OSError):
                 pass
             self.server = None
+
+    def _open_help(self, section_id: str = "receive_results"):
+        from .help_dialog import HelpDialog
+        HelpDialog.show_help(parent=self, section_id=section_id)
 
     def closeEvent(self, event):
         self._cleanup()

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "overview",
+    "file": "00_overview.md",
+    "icon": "DropOut.svg",
+    "title": {
+      "zh_CN": "00. 快速认识与核心理念",
+      "en": "00. Overview & Concepts"
+    }
+  },
+  {
+    "id": "mobile_setup",
+    "file": "01_mobile_setup.md",
+    "icon": "smartphone.svg",
+    "title": {
+      "zh_CN": "01. 首次使用与手机端准备",
+      "en": "01. Mobile Companion Setup"
+    }
+  },
+  {
+    "id": "send_project",
+    "file": "02_send_project.md",
+    "icon": "package.svg",
+    "title": {
+      "zh_CN": "02. 出工投送：电脑至手机",
+      "en": "02. Send to Mobile (Drop Out)"
+    }
+  },
+  {
+    "id": "receive_results",
+    "file": "03_receive_results.md",
+    "icon": "DropIn.svg",
+    "title": {
+      "zh_CN": "03. 收工回传：手机至电脑",
+      "en": "03. Receive Results (Drop In)"
+    }
+  },
+  {
+    "id": "network_guide",
+    "file": "04_network_guide.md",
+    "icon": "globe.svg",
+    "title": {
+      "zh_CN": "04. 外业野外组网攻略",
+      "en": "04. Field Networking Guide"
+    }
+  },
+  {
+    "id": "faq",
+    "file": "05_faq.md",
+    "icon": "alert-triangle.svg",
+    "title": {
+      "zh_CN": "05. 常见问题与排错急救箱",
+      "en": "05. Troubleshooting & FAQ"
+    }
+  },
+  {
+    "id": "appendix",
+    "file": "06_appendix.md",
+    "icon": "settings.svg",
+    "title": {
+      "zh_CN": "06. 附录与高级技巧",
+      "en": "06. Appendix & Advanced Tips"
+    }
+  }
+]
